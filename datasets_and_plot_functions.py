@@ -36,6 +36,20 @@ def validate_marker(value):
     valid_markers = ['o', 's', 'D', 'd' 'v', '^', '<', '>', 'p', '*', 'h', 'H', 'x', 'X', '+', '|', '_']
     return value in valid_markers
 
+def validate_linestyle(value):
+    """
+    Validate if the provided value is a valid linestyle.
+
+    Args:
+        value (str): The linestyle value to validate.
+
+    Returns:
+        bool: True if the value is a valid linestyle, False otherwise.
+    """
+    valid_linestyles = ['-', '--', '-.', ':', 'None', ' ', '', None]
+    return value in valid_linestyles
+
+
 class Dataset:
     """
     A class to represent a dataset and manage its plotting attributes.
@@ -77,7 +91,7 @@ class Dataset:
         self._color = cm.tab10(index)
         self._marker = marker_map(index)
         self._edge_color = "black"
-        self.linestyle = None
+        self._linestyle = None
         self.markersize = self.sym_size = 12
         self.alpha = 1
         self.hue = self.color_on = None
@@ -221,6 +235,32 @@ class Dataset:
             self._marker = value
         else:
             raise ValueError(f"Invalid marker value: {value}")
+
+    @property
+    def linestyle(self):
+        """
+        Get the linestyle style used for plotting.
+
+        Returns:
+            str: The linestyle style.
+        """
+        return self._linestyle
+
+    @linestyle.setter
+    def linestyle(self, value):
+        """
+        Set the linestyle style used for plotting.
+
+        Args:
+            value (str): The new linestyle style.
+
+        Raises:
+            ValueError: If the linestyle style value is invalid.
+        """
+        if validate_linestyle(value):
+            self._linestyle = value
+        else:
+            raise ValueError(f"Invalid linestyle value: {value}")
 
     def sel_query(self, query):
         """
