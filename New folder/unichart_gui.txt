@@ -143,7 +143,6 @@ class UniChart:
             'load_df': self.load_df,
             'ucmd_file': self.ucmd_file,
             'ucmdfile': self.ucmd_file,
-            'delta': self.delta,
 
             # Utility functions
             'print_usets': self.print_usets, 
@@ -156,10 +155,6 @@ class UniChart:
             'help': self.help,
             'save_png': self.save_png,
             'save_ucmd': self.save_ucmd,
-            'cd': self.cd,
-            'pwd': self.pwd,
-            'ls': self.ls,
-            
 
             'uset': [], #initialize empty list of datasets
         }
@@ -402,36 +397,6 @@ class UniChart:
 
             next_index += 1
 
-    def delta(self, base_set, new_set=None, delta_parms=None, align_on=None, suffixes=("", "NEW"), store_all_parms=True, passed_parms=None):
-        #check types of base_set and new_set 
-        uset = self.exec_env['uset']
-
-        if delta_parms == None:
-            print("Please provide parms to take deltas with")
-            return False
-        lsuffix = suffixes[0]
-        rsuffix = suffixes[1]
-        delta_type="point"
-        if delta_type == "point": 
-            df_base = base_set.df
-            df_new = new_set.df
-
-            merged_df = pd.merge(left=df_base, right=df_new, suffixes=suffixes, how="inner", on=align_on)
-
-            for parm in delta_parms:
-                try:
-                    merged_df[f"DL{parm}"] = merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"]
-                    merged_df[f"DLPCT{parm}"] = 100 * (merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"])/merged_df[f"{parm}{lsuffix}"]
-                except:
-                    print(f"Couldn't take delta for {parm}")
-
-            if len(merged_df) > 0:
-                self.load_df(merged_df)
-                uset[-1].settype = 'delta'
-                uset[-1].delta_sets = (base_set.index, new_set.index)
-                uset[-1].title = f"Delta set {base_set.index}-{new_set.index}"
-
-
 
     def execute_command(self, event):
         """
@@ -547,15 +512,13 @@ class UniChart:
         """
         if not filename:
             filename = f'plot_{self.last_x}_{self.last_y}.png'
-
-        temp_file_name = filename
-        while os.path.exists(filename):
-            filename = f"d{temp_file_name}_{i}.ucmd"
-            i += 1
-            if i > 1000:
-                print("Error: Could not save file.")
-                return False
-            
+            temp_file_name = filename
+            while os.path.exists(filename):
+                filename = f"d{temp_file_name}_{i}.ucmd"
+                i += 1
+                if i > 1000:
+                    print("Error: Could not save file.")
+                    return False
         if not filename.endswith(".png"):
             filename += ".png"
 

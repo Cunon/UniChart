@@ -71,16 +71,8 @@ class Dataset:
         hue_order (list): The order of hue levels.
         reg_order (int): The order of the regression fit.
         style (str): The style of the plot.
-        set_type (str): The type of the dataset (normal, delta, etc.)
-        delta_sets (tuple): If it's a delta set, the tuple of the two datasets with the first being the base.
-    
-    Methods:
-        sel_query(query): Set the query for filtering the DataFrame.
-        update_format_dict(format_options): Update multiple formatting options.
-        get_format_dict(): Get the current formatting options as a dictionary.
-        set_format_option(key, value): Set a specific formatting option.
-        get_title(): Get the title of the dataset.
-        delta_with(dataset, args): Create a delta dataset with another dataset.
+        settype (str): The type of the dataset (normal, delta, etc.)
+        
     """
 
     def __init__(self, df, index=0, title=None):
@@ -109,8 +101,7 @@ class Dataset:
         self.hue_order = None
         self.reg_order = self.fit = None
         self.style = None
-        self.set_type = 1   # 1 = normal, 2 = delta, 3 = delta with fit
-        self.delta_sets = None # tuple of datasets for delta set
+
     @property
     def df(self):
         """
@@ -345,24 +336,6 @@ class Dataset:
             str: The title of the dataset.
         """
         return self.title
-    
-    # def delta_with(self, dataset, delta_parms, delta_type='index', delta_on=None):
-
-    #     df1 = self._df_full
-        
-    #     #interpret dataset
-    #     if isinstance(dataset, Dataset):
-    #         df2 = dataset._df_full
-    #     elif isinstance(dataset, pd.DataFrame):
-    #         df2 = dataset
-    #     else:
-    #         print("Invalid dataset")
-    #         return
-        
-    #     #interpret delta_type
-    #     if delta_type == 'index':
-
-
 
 def table_read(df, x_col, y_col, x_in):
     """
@@ -382,13 +355,10 @@ def table_read(df, x_col, y_col, x_in):
     y_interp = f(x_in)
     return y_interp
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None, 
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
-            hue_order=None, line=False, ignore_list=[], 
-            suppress_msg=False, return_axes=False, axes=None, suptitle=None):
+            hue_order=None, line=False, ignore_list=[], suppress_msg=False, 
+            return_axes=False, axes=None, suptitle=None):
     """
     Create a unified plot for a list of datasets.
 
@@ -442,7 +412,7 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
                 if y.upper() in df.columns:
                     y = y.upper()
                 else:
-                    print(f"Dataframe does not contain {y}. Skipping...")
+                    print(f"Dataframe does not contain{y}. Skipping...")
                     continue
 
             title_dict = dataset.get_format_dict()
@@ -466,14 +436,21 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
 
             if linestyle is None:
                 if hue:
-                    scatter = sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
+                    if title_dict["hue_palette"] is None:
+                        sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
                                         label=f"{index} {title} colored on {hue}", palette=palette,
                                         legend=False, edgecolor=edge_color, linewidth=2)
-                    scatter.collections[-1].set_sizes([markersize**2])
-                    norm = plt.Normalize(df[hue].min(), df[hue].max())
-                    sm = plt.cm.ScalarMappable(cmap=palette, norm=norm)
-                    sm.set_array([])
-                    fig.colorbar(sm, ax=axes)
+                    else:
+                        try:
+                            sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
+                                            label=f"{index} {title} colored on {hue}", palette=palette,
+                                            legend=False, edgecolor=edge_color, linewidth=2)
+                        except:
+                            print(f"Incorrect hue palette choice {title_dict['hue_palette']}")
+                            sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
+                                            palette=hue_palette, label=f"{index} {title} colored on {hue}", 
+                                            legend=False, edgecolor=edge_color, linewidth=2)
+                    axes.collections[-1].set_sizes([markersize**2])
                     axes.legend(prop={'size': 12})    
                 else:
                     sns.scatterplot(data=df, x=x, y=y, ax=axes, color=color, marker=marker, 
