@@ -167,18 +167,18 @@ class UniChart:
     def cd(self, path):
         try:
             os.chdir(path)
-            self.append_to_history(f"Changed directory to: {os.getcwd()}\n")
+            print(f"Changed directory to: {os.getcwd()}\n")
         except Exception as e:
-            self.append_to_history(f"Error: {e}\n", "stderr")
+            print(f"Error: {e}\n", "stderr")
     
     def pwd(self):
         path_to_wd = os.path.abspath(os.getcwd())
-        self.append_to_history(f"{path_to_wd}\n")
+        print(f"{path_to_wd}\n")
         return path_to_wd
     
     def ls(self):
         list_of_files = os.listdir()
-        self.append_to_history(f"{list_of_files}\n")
+        print(f"{list_of_files}\n")
         return list_of_files
     
     def clear(self):
