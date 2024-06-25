@@ -31,6 +31,7 @@ class UniChart:
         loaded_sets (list): A list of loaded datasets.
         last_x (str): The last used x-axis value.
         last_y (str): The last used y-axis value.
+        dark_mode (bool): Flag to indicate if dark mode is enabled.
     """
 
     def __init__(self, root):
@@ -54,7 +55,6 @@ class UniChart:
         self.figure = Figure(figsize=(10, 8), dpi=100)
         self.canvas = FigureCanvasTkAgg(self.figure, self.root)
         self.canvas.get_tk_widget().grid(row=0, column=0, columnspan=2, sticky='nsew')
-
 
         # Add the navigation toolbar
         self.toolbar_frame = tk.Frame(self.root)
@@ -102,6 +102,8 @@ class UniChart:
         self.last_x = None
         self.last_y = None
 
+        # Initialize dark mode flag
+        self.dark_mode = False
 
         # Bind Control-O to load_file
         self.root.bind("<Control-o>", lambda event: self.load_file())
@@ -159,9 +161,9 @@ class UniChart:
             'cd': self.cd,
             'pwd': self.pwd,
             'ls': self.ls,
-            
 
             'uset': [], #initialize empty list of datasets
+            'toggle_darkmode': self.toggled_darkmode
         }
 
     def cd(self, path):
@@ -170,17 +172,17 @@ class UniChart:
             print(f"Changed directory to: {os.getcwd()}\n")
         except Exception as e:
             print(f"Error: {e}\n", "stderr")
-    
+
     def pwd(self):
         path_to_wd = os.path.abspath(os.getcwd())
         print(f"{path_to_wd}\n")
         return path_to_wd
-    
+
     def ls(self):
         list_of_files = os.listdir()
         print(f"{list_of_files}\n")
         return list_of_files
-    
+
     def clear(self):
         """
         Clear the command history.
@@ -189,6 +191,18 @@ class UniChart:
         self.history.delete('1.0', tk.END)
         self.history.configure(state='disabled')
 
+    def get_uset_slice(self, uset_slice):
+        if uset_slice is None:
+            return self.exec_env['uset']
+        elif isinstance(uset_slice, list):
+            if isinstance(uset_slice[0], int):
+                return [self.exec_env['uset'][i] for i in uset_slice]
+            return uset_slice
+        elif isinstance(uset_slice, int):
+            return [self.exec_env['uset'][uset_slice]]
+        else:
+            return [uset_slice]
+
     def omit(self, uset_slice=None):
         """
         Omit datasets from being selected for plotting.
@@ -196,18 +210,9 @@ class UniChart:
         Args:
             uset_slice (list or Dataset, optional): The list of datasets or a single dataset to omit. Default is None.
         """
-        if uset_slice is None:
-            uset_slice = self.exec_env['uset']
-        elif isinstance(uset_slice, list):
-            if type(uset_slice[0]) == int:
-                uset_slice = [self.exec_env['uset'][i] for i in uset_slice]
-            for dataset in uset_slice:
-                dataset.select = False
-        else:
-            try:
-                uset_slice.select = False
-            except AttributeError:
-                print("Error: uset_slice must be a list of datasets or a single dataset.") 
+        uset_slice = self.get_uset_slice(uset_slice)
+        for dataset in uset_slice:
+            dataset.select = False
 
     def select(self, uset_slice=None):
         """
@@ -216,25 +221,11 @@ class UniChart:
         Args:
             uset_slice (list or Dataset, optional): The list of datasets or a single dataset to select. Default is None.
         """
-        try:
-            for uset in self.exec_env['uset']:
-                uset.select = False
-            if uset_slice is None:
-                uset_slice = self.exec_env['uset']
-            elif isinstance(uset_slice, list):
-                if type(uset_slice[0]) == int:
-                    uset_slice = [self.exec_env['uset'][i] for i in uset_slice]
-                for dataset in uset_slice:
-                    dataset.select = True
-            else:
-                try:
-                    uset_slice.select = True
-                except AttributeError:
-                    print("Error: uset_slice must be a list of datasets or a single dataset.")  
-        except AttributeError:
-            print("Error: uset_slice must be a list of datasets or a single dataset.")
-        except Exception as e:
-            print(f"Error: {e}")
+        for uset in self.exec_env['uset']:
+            uset.select = False
+        uset_slice = self.get_uset_slice(uset_slice)
+        for dataset in uset_slice:
+            dataset.select = True
 
     def query(self, uset_slice=None, query=None):
         """
@@ -244,18 +235,9 @@ class UniChart:
             uset_slice (list or Dataset, optional): The list of datasets or a single dataset to query. Default is None.
             query (str, optional): The query string to filter the datasets. Default is None.
         """
-        if uset_slice is None:
-            uset_slice = self.exec_env['uset']
-        elif isinstance(uset_slice, list):
-            if type(uset_slice[0]) == int:
-                uset_slice = [self.exec_env['uset'][i] for i in uset_slice]
-            for dataset in uset_slice:
-                dataset.query = query
-        else:
-            try:
-                uset_slice.query = query
-            except AttributeError:
-                print("Error: uset_slice must be a list of datasets or a single dataset.")  
+        uset_slice = self.get_uset_slice(uset_slice)
+        for dataset in uset_slice:
+            dataset.query = query
 
     def color(self, uset_slice=None, color=None):
         """
@@ -266,21 +248,9 @@ class UniChart:
             color (str): The color to set.
         """
         if color is not None:
-            if uset_slice is None:
-                uset_slice = self.exec_env['uset']
-            elif isinstance(uset_slice, list):
-                if type(uset_slice[0]) == int:
-                    uset_slice = [self.exec_env['uset'][i] for i in uset_slice]
-                for dataset in uset_slice:
-                    dataset.color = color
-            elif isinstance(uset_slice, int):
-                dataset = self.exec_env['uset'][uset_slice]
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
                 dataset.color = color
-            else:
-                try:
-                    uset_slice.color = color
-                except AttributeError:
-                    print("Error: uset_slice must be a list of datasets or a single dataset.")  
         else:
             print("Error: color must be provided.")
 
@@ -293,48 +263,26 @@ class UniChart:
             marker (str): The marker style to set.
         """
         if marker is not None:
-            if uset_slice is None:
-                uset_slice = self.exec_env['uset']
-            elif isinstance(uset_slice, list):
-                if isinstance(uset_slice[0], int):
-                    uset_slice = [self.exec_env['uset'][i] for i in uset_slice]
-                for dataset in uset_slice:
-                    dataset.marker = marker
-            elif isinstance(uset_slice, int):
-                dataset = self.exec_env['uset'][uset_slice]
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
                 dataset.marker = marker
-            else:
-                try:
-                    uset_slice.marker = marker
-                except AttributeError:
-                    print("Error: uset_slice must be a list of datasets or a single dataset.")  
         else:
             print("Error: marker must be provided.")
-            
+
     def linestyle(self, uset_slice=None, linestyle='solid'):
+        """
+        Set the linestyle for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to set linestyle. Default is None.
+            linestyle (str): The linestyle to set. Default is 'solid'.
+        """
         if linestyle != 'solid':
-            if uset_slice is None:
-                uset_slice = self.exec_env['uset']
-            elif isinstance(uset_slice, list):
-                if isinstance(uset_slice[0], int):
-                    uset_slice = [self.exec_env['uset'][i] for i in uset_slice]
-                    for dataset in uset_slice:
-                        dataset.linestyle = linestyle
-                else:
-                    try:
-                        uset_slice.linestyle = linestyle
-                    except AttributeError:
-                        print("Error: uset_slice must be a list of datasets or a single dataset.")
-            elif isinstance(uset_slice, int):
-                dataset = self.exec_env['uset'][uset_slice]
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
                 dataset.linestyle = linestyle
-            else:
-                try:
-                    uset_slice.linestyle = linestyle
-                except AttributeError:
-                    print("Error: uset_slice must be a list of datasets or a single dataset.")  
         else:
-            print("Error: marker must be provided.")
+            print("Error: linestyle must be provided.")
 
     def plot(self, x=None, y=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
              marker=None, markersize=12, marker_edge_color=None,
@@ -376,7 +324,7 @@ class UniChart:
 
         uset = self.exec_env['uset']
 
-        uniplot(uset, x, y, return_axes=False, suptitle=self.suptitle, axes=ax)
+        uniplot(uset, x, y, return_axes=False, suptitle=self.suptitle, axes=ax, dark_mode=self.dark_mode)
         self.canvas.draw()  # Update the canvas
 
     def load_df(self, df, title=None, allcaps=True, load_cols_as_vars=True):
@@ -398,7 +346,6 @@ class UniChart:
 
         if allcaps: 
             df.columns = [col.upper() for col in df.columns]
-        
 
         if load_cols_as_vars:
             for col in df.columns:
@@ -407,7 +354,6 @@ class UniChart:
                     exec(f"{col.lower()} = '{col}'", {}, self.exec_env)
                 except Exception as e:
                     print(f"{e}: {col} not loaded as variable.")
-
 
         # Loop through unique titles and create subsets of the DataFrame
         for title_col in df["TITLE"].unique():
@@ -447,8 +393,6 @@ class UniChart:
                 uset[-1].settype = 'delta'
                 uset[-1].delta_sets = (base_set.index, new_set.index)
                 uset[-1].title = f"Delta set {base_set.index}-{new_set.index}"
-
-
 
     def execute_command(self, event):
         """
@@ -654,6 +598,10 @@ class UniChart:
         about_menu.add_command(label="About", command=self.show_about)
         menubar.add_cascade(label="About", menu=about_menu)
 
+        settings_menu = tk.Menu(menubar, tearoff=0)
+        settings_menu.add_command(label="Toggle Dark Mode", command=self.toggled_darkmode)
+        menubar.add_cascade(label="Settings", menu=settings_menu)
+
     def load_file(self):
         file_path = filedialog.askopenfilename(
             filetypes=[("Compatible Files", ["*.csv", "*.xlsx", "*.ucmd"]), 
@@ -666,7 +614,6 @@ class UniChart:
             try:
                 if file_path.endswith('.csv'):
                     df = pd.read_csv(file_path)
-                    print("hi")
                     self.load_df(df)
                 elif file_path.endswith('.xlsx'):
                     df = pd.read_excel(file_path)
@@ -686,7 +633,6 @@ class UniChart:
         )
         if file_path:
             self.ucmd_file(file_path)
-
 
     def save_file_dialog(self):
         """
@@ -714,7 +660,7 @@ class UniChart:
             if i > 1000:
                 print("Error: Could not save file.")
                 return
-        
+
         self.history.configure(state='normal')
         history_text = self.history.get("1.0", tk.END).splitlines()
         self.history.configure(state='disabled')
@@ -741,7 +687,7 @@ class UniChart:
         """
         Show the 'About' information of the application.
         """
-        messagebox.showinfo("About", "UniChart\nVersion 1.0\n\nMIT License\n\nFor more information, visit: https://github.com/TJEmmons/tje_plots")
+        messagebox.showinfo("About", "UniChart\nVersion 1.0\n\nA simple interactive plotting application.")
 
     def print_usets(self):
         """
@@ -755,6 +701,18 @@ class UniChart:
             points = len(dataset.df)
             parms = len(dataset.df.columns)
             print(f"{i:<10}{title:<30}{points:<10}{parms:<10}")
+
+    def toggled_darkmode(self):
+        """
+        Toggle the dark mode for the plots.
+        """
+        self.dark_mode = not self.dark_mode
+        if self.dark_mode:
+            plt.style.use('dark_background')
+        else:
+            plt.style.use('default')
+
+        self.plot()  # Re-plot to apply the new style
 
 class TextRedirector:
     """

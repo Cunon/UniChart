@@ -382,13 +382,11 @@ def table_read(df, x_col, y_col, x_in):
     y_interp = f(x_in)
     return y_interp
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None, 
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
-            hue_order=None, line=False, ignore_list=[], 
-            suppress_msg=False, return_axes=False, axes=None, suptitle=None):
+            hue_order=None, line=False, ignore_list=[], suppress_msg=False, 
+            return_axes=False, axes=None, suptitle=None, dark_mode=False):
+
     """
     Create a unified plot for a list of datasets.
 
@@ -416,6 +414,23 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
         fig, axes = plt.subplots(1, 1, figsize=(10, 8), dpi=100)
     else:
         fig = axes.figure
+
+    if dark_mode:
+        plt.style.use('dark_background')
+        fig.patch.set_facecolor('#2E2E2E')
+        axes.set_facecolor('#2E2E2E')
+        axes.spines['bottom'].set_color('white')
+        axes.spines['top'].set_color('white')
+        axes.spines['right'].set_color('white')
+        axes.spines['left'].set_color('white')
+        axes.xaxis.label.set_color('white')
+        axes.yaxis.label.set_color('white')
+        axes.title.set_color('white')
+        axes.tick_params(axis='x', colors='white')
+        axes.tick_params(axis='y', colors='white')
+        legend_text_color = 'white'
+    else:
+        legend_text_color = 'black'
 
     if suptitle:
         fig.suptitle(suptitle, fontsize='xx-large')
@@ -489,11 +504,11 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
                                     hue=hue, legend=False, size=markersize, palette=palette)
                 else:
                     if isinstance(reg_order, (int, float)) and reg_order > 0:
-                        scatter_kws = {'s': markersize**2, 'edgecolor': marker_edge_color, 'linewidth': 2, 'alpha': alpha}
+                        scatter_kws = {'s': markersize**2, 'edgecolor': marker_edge_color,  'alpha': alpha}
                         line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
                         sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
                                     color=color, marker=marker, label=f"{index} {title} Fit LS {reg_order}", 
-                                    order=reg_order, data=df) 
+                                    order=reg_order, data=df.sort_values(by=x)) 
                     else:
                         sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
                                     marker=marker, alpha=alpha, style=style, label=f"{index} {title} Fit ST")
