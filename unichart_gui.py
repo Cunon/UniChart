@@ -14,6 +14,18 @@ from datasets_and_plot_functions import (
     uniplot, default_hue_palette, table_read, marker_map, Dataset
 )
 
+def print_columns(df):
+    """
+    Neatly print the columns of the DataFrame with their indices.
+
+    Args:
+        df (pd.DataFrame): The DataFrame whose columns need to be printed.
+    """
+    print(f"{'Index':<10}{'Column Name':<30}")
+    print("=" * 40)
+    for i, col in enumerate(df.columns):
+        print(f"{i:<10}{col:<30}")
+
 class UniChart:
     """
     A class to represent the UniChart application for plotting datasets interactively using Tkinter.
@@ -137,6 +149,7 @@ class UniChart:
             # Selection and formatting
             'omit': self.omit,
             'select': self.select,
+            'restore': self.restore,
             'query': self.query,
             'color': self.color,  
             'marker': self.marker,
@@ -152,6 +165,10 @@ class UniChart:
             'print_usets': self.print_usets, 
             'list_usets': self.print_usets, 
             'list_sets': self.print_usets,
+
+            'print_columns': print_columns,
+            'list_parms': self.print_columns_in_dataset,
+            'list_cols': self.print_columns_in_dataset,
 
             # Other functions
             'clear': self.clear,
@@ -200,7 +217,7 @@ class UniChart:
         self.history.delete('1.0', tk.END)
         self.history.configure(state='disabled')
 
-    def get_uset_slice(self, uset_slice):
+    def get_uset_slice(self, uset_slice, return_indeicies=False):
         if uset_slice is None:
             return self.exec_env['uset']
         elif isinstance(uset_slice, list):
@@ -236,6 +253,37 @@ class UniChart:
         for dataset in uset_slice:
             dataset.select = True
 
+    def restore(self, uset_slice=None):
+        """
+        Select datasets for plotting.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to select. Default is None.
+        """
+
+        if uset_slice == "all":
+            for uset in self.exec_env['uset']:
+                uset.select = True
+                
+        else:
+            deactive_sets = []
+
+            for uset in self.exec_env['uset']:
+                if uset.select == False:
+                    deactive_sets.append(uset.index)
+
+            uset_slice = self.get_uset_slice(uset_slice)
+            
+            restore_sets = []
+            for uset in uset_slice:
+                restore_sets.append(uset.index)
+
+            # Inner merge between deactive_sets and uset_slice's indices
+            restored_indices = list(set(deactive_sets) & set(restore_sets))
+
+            for index in restored_indices:
+                self.exec_env['uset'][index].select = True
+
     def query(self, uset_slice=None, query=None):
         """
         Apply a query to filter datasets.
@@ -247,6 +295,20 @@ class UniChart:
         uset_slice = self.get_uset_slice(uset_slice)
         for dataset in uset_slice:
             dataset.query = query
+
+    def print_columns_in_dataset(self, uset_slice=None):
+        """
+        Print the columns of the dataset(s) in the specified slice.
+
+        Args:
+            uset_slice (int, list of int, Dataset, or list of Dataset, optional): The slice of datasets to print columns for. Default is None.
+        """
+        uset_slice = self.get_uset_slice(uset_slice)
+
+        for dataset in uset_slice:
+            print(f"Dataset {dataset.index}: {dataset.get_title()}")
+            print_columns(dataset.df)
+            print("\n")
 
     def color(self, uset_slice=None, color=None):
         """
