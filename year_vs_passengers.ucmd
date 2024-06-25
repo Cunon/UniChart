@@ -1,0 +1,57 @@
+# Change the working directory to the location of the file
+# os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+df = sns.load_dataset('flights')
+
+df_january = df[df['month'] == 'Jan']
+df_february = df[df['month'] == 'Feb']
+df_march = df[df['month'] == 'Mar']
+df_april = df[df['month'] == 'Apr']
+df_may = df[df['month'] == 'May']
+df_june = df[df['month'] == 'Jun']
+df_july = df[df['month'] == 'Jul']
+df_august = df[df['month'] == 'Aug']
+df_september = df[df['month'] == 'Sep']
+df_october = df[df['month'] == 'Oct']
+df_november = df[df['month'] == 'Nov']
+df_december = df[df['month'] == 'Dec']
+
+load_df(df_january)
+uset[0].title = "January"
+
+load_df(df_february)
+uset[1].title = "February"
+
+load_df(df_march)
+uset[2].title = "March"
+
+load_df(df_april)
+uset[3].title = "April"
+
+load_df(df_may)
+uset[4].title = "May"
+
+load_df(df_june)
+uset[5].title = "June"
+
+load_df(df_july)
+uset[6].title = "July"
+
+load_df(df_august)
+uset[7].title = "August"
+
+load_df(df_september)
+uset[8].title = "September"
+
+load_df(df_october)
+uset[9].title = "October"
+
+load_df(df_november)
+uset[10].title = "November"
+
+load_df(df_december)
+uset[11].title = "December"
+
+
+plot("year", "passengers")
+# save_png("passengers")
