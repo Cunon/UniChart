@@ -1,10 +1,11 @@
 toggle_darkmode()
 
 df = pd.DataFrame({'x': [0], 'y': [0]})
-
 load_df(df)
 uset[0].title=""
 
+omit(0)
 plot(x,y)
 
 uset=[]
+clear()
