@@ -106,7 +106,8 @@ class UniChart:
         self.dark_mode = False
 
         # Bind Control-O to load_file
-        self.root.bind("<Control-o>", lambda event: self.load_file())
+        self.root.bind("<Control-o>", lambda event: self.load_file())        # Execute startup script if it exists
+        self.execute_startup_script()
 
     def initialize_exec_env(self):
         """
@@ -165,6 +166,14 @@ class UniChart:
             'uset': [], #initialize empty list of datasets
             'toggle_darkmode': self.toggled_darkmode
         }
+
+    def execute_startup_script(self):
+        """
+        Execute the startup.ucmd script if it exists in the same directory.
+        """
+        startup_file = os.path.join(os.path.dirname(__file__), "startup.ucmd")
+        if os.path.isfile(startup_file):
+            self.ucmd_file(startup_file)
 
     def cd(self, path):
         try:
