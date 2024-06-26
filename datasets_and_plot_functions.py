@@ -4,6 +4,7 @@ import matplotlib.colors as colors
 import pandas as pd
 import seaborn as sns
 from scipy.interpolate import interp1d
+import mplcursors
 
 default_hue_palette = sns.color_palette("YlOrRd_d", as_cmap=True)
 
@@ -33,7 +34,7 @@ def validate_marker(value):
     Returns:
         bool: True if the value is a valid marker, False otherwise.
     """
-    valid_markers = ['o', 's', 'D', 'd' 'v', '^', '<', '>', 'p', '*', 'h', 'H', 'x', 'X', '+', '|', '_']
+    valid_markers = ['o', 's', 'D', 'd', 'v', '^', '<', '>', 'p', '*', 'h', 'H', 'x', 'X', '+', '|', '_']
     return value in valid_markers
 
 def validate_linestyle(value):
@@ -83,7 +84,7 @@ class Dataset:
         delta_with(dataset, args): Create a delta dataset with another dataset.
     """
 
-    def __init__(self, df, index=0, title=None):
+    def __init__(self, df, index=0, title=None, display_parms=None):
         """
         Initialize the Dataset object.
 
@@ -111,6 +112,8 @@ class Dataset:
         self.style = None
         self.set_type = 1   # 1 = normal, 2 = delta, 3 = delta with fit
         self.delta_sets = None # tuple of datasets for delta set
+        self._display_parms = display_parms if display_parms else []
+
     @property
     def df(self):
         """
@@ -272,6 +275,17 @@ class Dataset:
             self._linestyle = value
         else:
             raise ValueError(f"Invalid linestyle value: {value}")
+    
+    @property
+    def display_parms(self):
+        return self._display_parms
+
+    @display_parms.setter
+    def display_parms(self, value):
+        if isinstance(value, list):
+            self._display_parms = value
+        else:
+            raise ValueError(f"display_parms must be a list, got {type(value)}")
 
     def sel_query(self, query):
         """
@@ -318,7 +332,8 @@ class Dataset:
             'hue_order': self.hue_order,
             'reg_order': self.reg_order,
             'index': self.index,
-            'style': self.style
+            'style': self.style,
+            'display_parms': self.display_parms
         }
 
     def set_format_option(self, key, value):
@@ -385,7 +400,8 @@ def table_read(df, x_col, y_col, x_in):
 def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None, 
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
             hue_order=None, line=False, ignore_list=[], suppress_msg=False, 
-            return_axes=False, axes=None, suptitle=None, dark_mode=False):
+            return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
+            annotation_parms=None):
 
     """
     Create a unified plot for a list of datasets.
@@ -521,6 +537,24 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
 
         axes.set_xlabel(x, fontsize='x-large')
         axes.set_ylabel(y, fontsize='x-large')
+        
+        if interactive:
+
+            cursor = mplcursors.cursor(axes)
+            @cursor.connect("add")
+            def on_add(sel):
+                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {title}'
+                effective_annotation_parms = annotation_parms if annotation_parms else dataset.display_parms
+                if effective_annotation_parms:
+                    for parm in effective_annotation_parms:
+                        if parm in df.columns:
+                            value = df[parm].iloc[sel.index]
+                            if isinstance(value, (int, float)):
+                                annotation_text += f'\n{parm}: {value:.2f}'
+                            else:
+                                annotation_text += f'\n{parm}: {value}'
+                sel.annotation.set(text=annotation_text)
+                sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
 
         if return_axes:
             return axes
