@@ -401,7 +401,7 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
             hue_order=None, line=False, ignore_list=[], suppress_msg=False, 
             return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
-            annotation_parms=None):
+            display_parms=None):
 
     """
     Create a unified plot for a list of datasets.
@@ -544,16 +544,16 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             @cursor.connect("add")
             def on_add(sel):
                 annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {title}'
-                effective_annotation_parms = annotation_parms if annotation_parms else dataset.display_parms
-                if effective_annotation_parms:
-                    for parm in effective_annotation_parms:
+                effective_display_parms = display_parms if display_parms else dataset.display_parms
+                if effective_display_parms:
+                    for parm in effective_display_parms:
                         if parm in df.columns:
                             value = df[parm].iloc[sel.index]
                             if isinstance(value, (int, float)):
                                 annotation_text += f'\n{parm}: {value:.2f}'
                             else:
                                 annotation_text += f'\n{parm}: {value}'
-                sel.annotation.set(text=annotation_text)
+                sel.annotation.set(text=annotation_text, color='black')
                 sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
 
         if return_axes:

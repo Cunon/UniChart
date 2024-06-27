@@ -44,6 +44,8 @@ class UniChart:
         last_x (str): The last used x-axis value.
         last_y (str): The last used y-axis value.
         dark_mode (bool): Flag to indicate if dark mode is enabled.
+        suptitle (str): The title for the plot.
+        display_parms (list): List of parameters to display.
     """
 
     def __init__(self, root):
@@ -96,6 +98,7 @@ class UniChart:
 
         # Initialize figure and canvas variables
         self.suptitle = None
+        self.display_parms = []
 
         # Create an execution environment
         self.initialize_exec_env()
@@ -133,7 +136,9 @@ class UniChart:
             'sns': sns,
             'interp1d': interp1d,
 
-            # Figure and canvas options
+            # Top level Plot formatting
+            'display_parms': self.display_parms,
+            'default_display_parms': [],
             'suptitle': self.suptitle,
 
             # Defaults
@@ -146,11 +151,13 @@ class UniChart:
             # Loaded Functions
             'plot': self.plot,  
 
-            # Selection and formatting
+            # Selection and filtering
             'omit': self.omit,
             'select': self.select,
             'restore': self.restore,
             'query': self.query,
+
+            # Set formatting
             'color': self.color,  
             'marker': self.marker,
             'linestyle': self.linestyle,  
@@ -358,7 +365,7 @@ class UniChart:
     def plot(self, x=None, y=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
              marker=None, markersize=12, marker_edge_color=None,
              hue_palette=default_hue_palette, hue_order=None, line=False, 
-             ignore_list=[], suppress_msg=False):
+             ignore_list=[], suppress_msg=False, display_parms=None):
         """
         Plot the datasets on the specified x and y axes.
 
@@ -394,8 +401,10 @@ class UniChart:
         ax = self.figure.add_subplot(111)  # Add a new subplot
 
         uset = self.exec_env['uset']
+        suptitle = self.exec_env['suptitle']
+        display_parms = self.exec_env['display_parms']
 
-        uniplot(uset, x, y, return_axes=False, suptitle=self.suptitle, axes=ax, dark_mode=self.dark_mode)
+        uniplot(uset, x, y, return_axes=False, suptitle=suptitle, display_parms=display_parms, axes=ax, dark_mode=self.dark_mode)
         self.canvas.draw()  # Update the canvas
 
     def load_df(self, df, title=None, allcaps=True, load_cols_as_vars=True):
@@ -405,6 +414,8 @@ class UniChart:
         Args:
             df (pd.DataFrame): The DataFrame to load.
             title (str, optional): The title for the datasets. Default is None.
+            allcaps (bool, optional): Whether to convert column names to uppercase. Default is True.
+            load_cols_as_vars (bool, optional): Whether to load column names as variables. Default is True.
         """
         uset = self.exec_env['uset']
         next_index = len(uset)
@@ -427,9 +438,10 @@ class UniChart:
                     print(f"{e}: {col} not loaded as variable.")
 
         # Loop through unique titles and create subsets of the DataFrame
+        display_parms = self.exec_env['default_display_parms']
         for title_col in df["TITLE"].unique():
             df_subset = df[df["TITLE"] == title_col]
-            dataset = Dataset(df_subset, index=next_index)
+            dataset = Dataset(df_subset, index=next_index, display_parms=display_parms)
             uset.append(dataset)
                         
             print(f"Set {next_index}: {dataset.get_title()}")
@@ -624,18 +636,27 @@ class UniChart:
                 'plot': 'plot(x,y) - Plot the datasets in the environment on the x and y axes.',
                 'omit': 'omit(uset_slice) - Omit datasets from the plot.',
                 'select': 'select(uset_slice) - Select datasets and exclude rest for the plot.',
+                'restore': 'restore(uset_slice) - Restore previously omitted datasets.',
                 'query': 'query(uset_slice, query) - Query datasets in the environment.',
                 'color': 'color(uset_slice, color) - Set the color of datasets.',
                 'marker': 'marker(uset_slice, marker) - Set the marker of datasets.',
+                'linestyle': 'linestyle(uset_slice, linestyle) - Set the linestyle of datasets.',
                 'load_df': 'load_df(df) - Load a DataFrame into the environment as a dataset.',
                 'ucmd_file': 'ucmd_file(file_path) - Execute a ucmd file in the environment.',
                 'print_usets': 'print_usets() - Print the datasets in the environment.',
+                'print_columns': 'print_columns(df) - Print the columns of a DataFrame.',
+                'list_parms': 'list_parms(uset_slice) - List the parameters in a dataset slice.',
+                'list_cols': 'list_cols(uset_slice) - List the columns in a dataset slice.',
                 'clear': 'clear() - Clear the history box.',
                 'restart': 'restart() - Restart the environment.',
                 'save_png': 'save_png(filename) - Save the current plot as a PNG file',
+                'save_ucmd': 'save_ucmd(filename) - Save the command history to a UCMD file.',
+                'cd': 'cd(path) - Change the current directory.',
+                'pwd': 'pwd() - Print the current directory.',
+                'ls': 'ls() - List files in the current directory.',
                 'uset': 'list of datasets in the environment',
-                'save_ucmd': 'writes a ucmd file with command history',
-                'help': 'help() - Print this help message.',
+                'toggle_darkmode': 'toggle_darkmode() - Toggle dark mode for plots.',
+                'delta': 'delta(base_set, new_set, delta_parms, align_on, suffixes, store_all_parms, passed_parms) - Compute deltas between datasets.'
             }
 
             max_len_lib = max(len(key) for key in libraries.keys())
@@ -650,13 +671,16 @@ class UniChart:
             for key, description in builtin_functions.items():
                 print(f"{key:<{max_len_func}} : {description}")
 
+            print("\nDefault Attributes:\n")
+            for key, description in defaults.items():
+                print(f"{key:<{max_len_def}} : {description}")
+
     def create_menu(self):
         """
         Create the menu bar for the application.
         """
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
-
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Open", command=self.load_file)
         file_menu.add_command(label="Save Png", command=self.save_file_dialog)
@@ -676,10 +700,10 @@ class UniChart:
     def load_file(self):
         file_path = filedialog.askopenfilename(
             filetypes=[("Compatible Files", ["*.csv", "*.xlsx", "*.ucmd"]), 
-                       ("CSV files", "*.csv"), 
-                       ("Excel files", "*.xlsx"), 
-                       ("UCMD files", "*.ucmd"), 
-                       ("All files", "*.*")]
+                    ("CSV files", "*.csv"), 
+                    ("Excel files", "*.xlsx"), 
+                    ("UCMD files", "*.ucmd"), 
+                    ("All files", "*.*")]
         )
         if file_path:
             try:
@@ -710,7 +734,7 @@ class UniChart:
         Save the current plot as a PNG file through a file dialog.
         """
         file_path = filedialog.asksaveasfilename(defaultextension=".png",
-                                                 filetypes=[("PNG files", "*.png"), ("All files", "*.*")])
+                                                filetypes=[("PNG files", "*.png"), ("All files", "*.*")])
         if file_path:
             self.save_png(file_path)
 
@@ -784,6 +808,7 @@ class UniChart:
             plt.style.use('default')
 
         self.plot()  # Re-plot to apply the new style
+
 
 class TextRedirector:
     """
