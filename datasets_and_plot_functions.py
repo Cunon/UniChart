@@ -5,7 +5,8 @@ import pandas as pd
 import seaborn as sns
 from scipy.interpolate import interp1d
 import mplcursors
-
+from math import floor, ceil
+import numpy as np
 default_hue_palette = sns.color_palette("YlOrRd_d", as_cmap=True)
 
 def validate_color(value):
@@ -545,17 +546,45 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             def on_add(sel):
                 selected_title = sel.artist.get_label()
                 set_number  = int(selected_title.split()[0])
-                selected_df = list_of_datasets[set_number].df
-                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {selected_df["TITLE"].iloc[sel.index]}' #check for TITLE in DF!!
-                effective_display_parms = display_parms if display_parms else dataset.display_parms
+                selected_dataset = list_of_datasets[set_number]
+                selected_df = selected_dataset.df
+                print(f"{sel.index}")
+                print(f"{type(sel.index)}")
+
+                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {selected_dataset.title}'
+                effective_display_parms = display_parms if display_parms else dataset.display_parms 
                 if effective_display_parms:
-                    for parm in effective_display_parms:
-                        if parm in selected_df.columns:
-                            value = selected_df[parm].iloc[sel.index]
-                            if isinstance(value, (int, float)):
-                                annotation_text += f'\n{parm}: {value:.2f}'
-                            else:
-                                annotation_text += f'\n{parm}: {value}'
+
+                    if isinstance(sel.index, np.intc):
+                        for parm in effective_display_parms:
+                            if parm in selected_df.columns:
+                                value = selected_df[parm].iloc[sel.index]
+                                if isinstance(value, (int, float)):
+                                    annotation_text += f'\n{parm}: {value:.2f}'
+                                else:
+                                    annotation_text += f'\n{parm}: {value}'
+                    elif isinstance(sel.index, np.float64):
+                        try:
+                            float_index = float(sel.index)
+                            low_index = floor(float_index)
+                            high_index = ceil(float_index)
+                            for parm in effective_display_parms:
+                                if parm in selected_df.columns:
+                                    low_value = selected_df[parm].iloc[low_index]
+                                    high_value = selected_df[parm].iloc[high_index]
+                                    value = low_value + (float_index - low_index) * (high_value - low_value)
+                                    if isinstance(value, (int, float)):
+                                        annotation_text += f'\n{parm}: {value:.2f} (interp)'
+                                    else:
+                                        annotation_text += f'\n{parm}: {value}'
+                        except Exception as e:
+                            print(f"Error: {e}")
+                            return
+                    else:
+                        print("Invalid index type for display parameters")
+                        return
+
+
                 sel.annotation.set(text=annotation_text, color='black')
                 sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
 
