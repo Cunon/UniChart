@@ -1,5 +1,7 @@
 toggle_darkmode()
 
+default_display_parms = ["A", "B"]
+
 df = pd.DataFrame({'x': [0], 'y': [0]})
 load_df(df)
 uset[0].title=""

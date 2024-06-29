@@ -4,7 +4,9 @@ import matplotlib.colors as colors
 import pandas as pd
 import seaborn as sns
 from scipy.interpolate import interp1d
-
+import mplcursors
+from math import floor, ceil
+import numpy as np
 default_hue_palette = sns.color_palette("YlOrRd_d", as_cmap=True)
 
 def validate_color(value):
@@ -33,7 +35,7 @@ def validate_marker(value):
     Returns:
         bool: True if the value is a valid marker, False otherwise.
     """
-    valid_markers = ['o', 's', 'D', 'd' 'v', '^', '<', '>', 'p', '*', 'h', 'H', 'x', 'X', '+', '|', '_']
+    valid_markers = ['o', 's', 'D', 'd', 'v', '^', '<', '>', 'p', '*', 'h', 'H', 'x', 'X', '+', '|', '_']
     return value in valid_markers
 
 def validate_linestyle(value):
@@ -83,7 +85,7 @@ class Dataset:
         delta_with(dataset, args): Create a delta dataset with another dataset.
     """
 
-    def __init__(self, df, index=0, title=None):
+    def __init__(self, df, index=0, title=None, display_parms=None):
         """
         Initialize the Dataset object.
 
@@ -111,6 +113,8 @@ class Dataset:
         self.style = None
         self.set_type = 1   # 1 = normal, 2 = delta, 3 = delta with fit
         self.delta_sets = None # tuple of datasets for delta set
+        self._display_parms = display_parms if display_parms else []
+
     @property
     def df(self):
         """
@@ -272,6 +276,17 @@ class Dataset:
             self._linestyle = value
         else:
             raise ValueError(f"Invalid linestyle value: {value}")
+    
+    @property
+    def display_parms(self):
+        return self._display_parms
+
+    @display_parms.setter
+    def display_parms(self, value):
+        if isinstance(value, list):
+            self._display_parms = value
+        else:
+            raise ValueError(f"display_parms must be a list, got {type(value)}")
 
     def sel_query(self, query):
         """
@@ -318,7 +333,8 @@ class Dataset:
             'hue_order': self.hue_order,
             'reg_order': self.reg_order,
             'index': self.index,
-            'style': self.style
+            'style': self.style,
+            'display_parms': self.display_parms
         }
 
     def set_format_option(self, key, value):
@@ -385,7 +401,8 @@ def table_read(df, x_col, y_col, x_in):
 def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None, 
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
             hue_order=None, line=False, ignore_list=[], suppress_msg=False, 
-            return_axes=False, axes=None, suptitle=None, dark_mode=False):
+            return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
+            display_parms=None):
 
     """
     Create a unified plot for a list of datasets.
@@ -500,18 +517,18 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
                 if hue:
                     print("Unichart doesn't currently support lineplots with hue")
                     sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
-                                    marker=marker, alpha=alpha, style=style, label=f"{index} {title} colored on {hue}",
+                                    marker=marker, alpha=alpha, style=style, label=f"{index} : {title} colored on {hue}",
                                     hue=hue, legend=False, size=markersize, palette=palette)
                 else:
                     if isinstance(reg_order, (int, float)) and reg_order > 0:
                         scatter_kws = {'s': markersize**2, 'edgecolor': marker_edge_color,  'alpha': alpha}
                         line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
                         sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
-                                    color=color, marker=marker, label=f"{index} {title} Fit LS {reg_order}", 
+                                    color=color, marker=marker, label=f"{index} : {title} Fit LS {reg_order}", 
                                     order=reg_order, data=df.sort_values(by=x)) 
                     else:
                         sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
-                                    marker=marker, alpha=alpha, style=style, label=f"{index} {title} Fit ST")
+                                    marker=marker, alpha=alpha, style=style, label=f"{index} : {title} Fit ST")
 
                 lines = axes.get_lines()
                 for line in lines:
@@ -521,6 +538,55 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
 
         axes.set_xlabel(x, fontsize='x-large')
         axes.set_ylabel(y, fontsize='x-large')
+        
+        if interactive:
+
+            cursor = mplcursors.cursor(axes)
+            @cursor.connect("add")
+            def on_add(sel):
+                selected_title = sel.artist.get_label()
+                set_number  = int(selected_title.split()[0])
+                selected_dataset = list_of_datasets[set_number]
+                selected_df = selected_dataset.df
+                print(f"{sel.index}")
+                print(f"{type(sel.index)}")
+
+                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {selected_dataset.title}'
+                effective_display_parms = display_parms if display_parms else dataset.display_parms 
+                if effective_display_parms:
+
+                    if isinstance(sel.index, np.intc):
+                        for parm in effective_display_parms:
+                            if parm in selected_df.columns:
+                                value = selected_df[parm].iloc[sel.index]
+                                if isinstance(value, (int, float)):
+                                    annotation_text += f'\n{parm}: {value:.2f}'
+                                else:
+                                    annotation_text += f'\n{parm}: {value}'
+                    elif isinstance(sel.index, np.float64):
+                        try:
+                            float_index = float(sel.index)
+                            low_index = floor(float_index)
+                            high_index = ceil(float_index)
+                            for parm in effective_display_parms:
+                                if parm in selected_df.columns:
+                                    low_value = selected_df[parm].iloc[low_index]
+                                    high_value = selected_df[parm].iloc[high_index]
+                                    value = low_value + (float_index - low_index) * (high_value - low_value)
+                                    if isinstance(value, (int, float)):
+                                        annotation_text += f'\n{parm}: {value:.2f} (interp)'
+                                    else:
+                                        annotation_text += f'\n{parm}: {value}'
+                        except Exception as e:
+                            print(f"Error: {e}")
+                            return
+                    else:
+                        print("Invalid index type for display parameters")
+                        return
+
+
+                sel.annotation.set(text=annotation_text, color='black')
+                sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
 
         if return_axes:
             return axes
