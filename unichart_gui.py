@@ -46,6 +46,7 @@ class UniChart:
         dark_mode (bool): Flag to indicate if dark mode is enabled.
         suptitle (str): The title for the plot.
         display_parms (list): List of parameters to display.
+        default_display_parms (list): List of parameters to pass with dfs when loaded.
     """
 
     def __init__(self, root):
@@ -332,6 +333,21 @@ class UniChart:
         else:
             print("Error: color must be provided.")
 
+    def hue(self, uset_slice=None, hue=None):
+        """
+        Set the hue for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to color. Default is None.
+            hue (str): The hue to set.
+        """
+        if hue is not None:
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
+                dataset.hue = hue
+        else:
+            print("Error: hue must be provided.")
+
     def marker(self, uset_slice=None, marker=None):
         """
         Set the marker style for datasets.
@@ -405,6 +421,7 @@ class UniChart:
         display_parms = self.exec_env['display_parms']
 
         uniplot(uset, x, y, return_axes=False, suptitle=suptitle, display_parms=display_parms, axes=ax, dark_mode=self.dark_mode)
+        
         self.canvas.draw()  # Update the canvas
 
     def load_df(self, df, title=None, allcaps=True, load_cols_as_vars=True):
@@ -590,19 +607,19 @@ class UniChart:
             filename (str, optional): The filename to save the plot as. Default is None.
         """
         if not filename:
-            filename = f'plot_{self.last_x}_{self.last_y}.png'
+            filename = f'plot_{self.last_x}_{self.last_y}'
+        elif filename.endswith('.png'):
+            filename = filename[:-4]
 
         temp_file_name = filename
-        while os.path.exists(filename):
-            filename = f"d{temp_file_name}_{i}.ucmd"
+        while os.path.exists(f"{filename}.png"):
+            filename = f"d{temp_file_name}_{i}"
             i += 1
             if i > 1000:
                 print("Error: Could not save file.")
                 return False
             
-        if not filename.endswith(".png"):
-            filename += ".png"
-
+        filename += ".png"
         self.figure.savefig(filename)
         print(f"Plot saved as {filename}")
 

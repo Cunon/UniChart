@@ -543,7 +543,7 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             cursor = mplcursors.cursor(axes)
             @cursor.connect("add")
             def on_add(sel):
-                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {title}'
+                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {df["TITLE"].iloc[sel.index]}' #check for TITLE in DF!!
                 effective_display_parms = display_parms if display_parms else dataset.display_parms
                 if effective_display_parms:
                     for parm in effective_display_parms:
