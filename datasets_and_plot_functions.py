@@ -499,7 +499,7 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             if linestyle is None:
                 if hue:
                     scatter = sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
-                                        label=f"{index} {title} colored on {hue}", palette=palette,
+                                        label=f"{index} : {title} colored on {hue}", palette=palette,
                                         legend=False, edgecolor=edge_color, linewidth=2)
                     scatter.collections[-1].set_sizes([markersize**2])
                     norm = plt.Normalize(df[hue].min(), df[hue].max())
@@ -509,7 +509,7 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
                     axes.legend(prop={'size': 12})    
                 else:
                     sns.scatterplot(data=df, x=x, y=y, ax=axes, color=color, marker=marker, 
-                                    alpha=alpha, style=style, label=f"{index} {title}",
+                                    alpha=alpha, style=style, label=f"{index} : {title}",
                                     edgecolor=edge_color, linewidth=2)
                     axes.collections[-1].set_sizes([markersize**2])
                     axes.legend(prop={'size': 12})
