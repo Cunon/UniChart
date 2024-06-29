@@ -516,18 +516,18 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
                 if hue:
                     print("Unichart doesn't currently support lineplots with hue")
                     sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
-                                    marker=marker, alpha=alpha, style=style, label=f"{index} {title} colored on {hue}",
+                                    marker=marker, alpha=alpha, style=style, label=f"{index} : {title} colored on {hue}",
                                     hue=hue, legend=False, size=markersize, palette=palette)
                 else:
                     if isinstance(reg_order, (int, float)) and reg_order > 0:
                         scatter_kws = {'s': markersize**2, 'edgecolor': marker_edge_color,  'alpha': alpha}
                         line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
                         sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
-                                    color=color, marker=marker, label=f"{index} {title} Fit LS {reg_order}", 
+                                    color=color, marker=marker, label=f"{index} : {title} Fit LS {reg_order}", 
                                     order=reg_order, data=df.sort_values(by=x)) 
                     else:
                         sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
-                                    marker=marker, alpha=alpha, style=style, label=f"{index} {title} Fit ST")
+                                    marker=marker, alpha=alpha, style=style, label=f"{index} : {title} Fit ST")
 
                 lines = axes.get_lines()
                 for line in lines:
@@ -543,12 +543,15 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             cursor = mplcursors.cursor(axes)
             @cursor.connect("add")
             def on_add(sel):
-                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {df["TITLE"].iloc[sel.index]}' #check for TITLE in DF!!
+                selected_title = sel.artist.get_label()
+                set_number  = int(selected_title.split()[0])
+                selected_df = list_of_datasets[set_number].df
+                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {selected_df["TITLE"].iloc[sel.index]}' #check for TITLE in DF!!
                 effective_display_parms = display_parms if display_parms else dataset.display_parms
                 if effective_display_parms:
                     for parm in effective_display_parms:
-                        if parm in df.columns:
-                            value = df[parm].iloc[sel.index]
+                        if parm in selected_df.columns:
+                            value = selected_df[parm].iloc[sel.index]
                             if isinstance(value, (int, float)):
                                 annotation_text += f'\n{parm}: {value:.2f}'
                             else:

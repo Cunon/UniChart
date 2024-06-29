@@ -806,13 +806,31 @@ class UniChart:
         Print the datasets currently in the environment.
         """
         uset = self.exec_env['uset']
-        print(f"{'Set':<10}{'Title':<30}{'Points':<10}{'Parms':<10}")
-        print("=" * 60)
+        # Define the maximum length for the title before breaking it into a new line
+        max_title_length = 35
+
+        # Adjust the header to allocate more space for the title
+        print(f"{'Set':<8}{'Title':<40}{'Points':<10}{'Parms':<10}")
+        print("=" * 70)  # Increase the total length to accommodate the longer title
+
         for i, dataset in enumerate(uset):
             title = dataset.get_title()
             points = len(dataset.df)
             parms = len(dataset.df.columns)
-            print(f"{i:<10}{title:<30}{points:<10}{parms:<10}")
+
+            # Split the title into multiple lines if it's too long
+            if len(title) > max_title_length:
+                # Break the title into chunks of max_title_length
+                title_lines = [title[j:j+max_title_length] for j in range(0, len(title), max_title_length)]
+            else:
+                title_lines = [title]
+
+            # Print the first line of the title with the dataset info
+            print(f"{i:<8}{title_lines[0]:<40}{points:<10}{parms:<10}")
+
+            # If there are additional lines, print them on new lines with spacing to align with the title column
+            for additional_line in title_lines[1:]:
+                print(f"{' ':<8}{additional_line:<40}{' ':<10}{' ':<10}")
 
     def toggled_darkmode(self):
         """
