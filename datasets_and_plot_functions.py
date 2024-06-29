@@ -548,8 +548,6 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
                 set_number  = int(selected_title.split()[0])
                 selected_dataset = list_of_datasets[set_number]
                 selected_df = selected_dataset.df
-                print(f"{sel.index}")
-                print(f"{type(sel.index)}")
 
                 annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {selected_dataset.title}'
                 effective_display_parms = display_parms if display_parms else dataset.display_parms 
