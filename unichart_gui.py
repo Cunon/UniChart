@@ -46,6 +46,24 @@ class ReadOnlyFunction:
         else:
             raise AttributeError("Cannot modify read-only function")
 
+class ReadOnlyDict(dict):
+    """
+    A dictionary that prevents overwriting of specific read-only keys.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.read_only_keys = set()
+
+    def make_read_only(self, key):
+        self.read_only_keys.add(key)
+
+    def __setitem__(self, key, value):
+        if key in self.read_only_keys:
+            raise KeyError(f"Cannot modify read-only key: {key}")
+        super().__setitem__(key, value)
+
+
 class UniChart:
     """
     A class to represent the UniChart application for plotting datasets interactively using Tkinter.
@@ -149,7 +167,7 @@ class UniChart:
         """
         Initialize the execution environment for running commands.
         """
-        self.exec_env = {
+        self.exec_env = ReadOnlyDict({
             # Libraries
             'os': os,
             'plt': plt,
@@ -210,7 +228,13 @@ class UniChart:
 
             'uset': [], #initialize empty list of datasets
             'toggle_darkmode': ReadOnlyFunction(self.toggled_darkmode)
-        }
+        })
+
+        # Make specific keys read-only
+        for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
+                    'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
+                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode']:
+            self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
         """
