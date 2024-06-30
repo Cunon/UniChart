@@ -26,6 +26,26 @@ def print_columns(df):
     for i, col in enumerate(df.columns):
         print(f"{i:<10}{col:<30}")
 
+class ReadOnlyFunction:
+    """
+    A class to wrap a function and make it read-only.
+    """
+
+    def __init__(self, func):
+        self.func = func
+
+    def __call__(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
+
+    def __setattr__(self, name, value):
+        """
+        Prevent setting attributes on the ReadOnlyFunction instance.
+        """
+        if name == 'func':
+            super().__setattr__(name, value)
+        else:
+            raise AttributeError("Cannot modify read-only function")
+
 class UniChart:
     """
     A class to represent the UniChart application for plotting datasets interactively using Tkinter.
@@ -150,46 +170,46 @@ class UniChart:
             'Dataset': Dataset,
 
             # Loaded Functions
-            'plot': self.plot,  
+            'plot': ReadOnlyFunction(self.plot),  
 
             # Selection and filtering
-            'omit': self.omit,
-            'select': self.select,
-            'restore': self.restore,
-            'query': self.query,
+            'omit': ReadOnlyFunction(self.omit),
+            'select': ReadOnlyFunction(self.select),
+            'restore': ReadOnlyFunction(self.restore),
+            'query': ReadOnlyFunction(self.query),
 
             # Set formatting
-            'color': self.color,  
-            'marker': self.marker,
-            'linestyle': self.linestyle,  
+            'color': ReadOnlyFunction(self.color),  
+            'marker': ReadOnlyFunction(self.marker),
+            'linestyle': ReadOnlyFunction(self.linestyle),  
 
             # Data management
-            'load_df': self.load_df,
-            'ucmd_file': self.ucmd_file,
-            'ucmdfile': self.ucmd_file,
-            'delta': self.delta,
+            'load_df': ReadOnlyFunction(self.load_df),
+            'ucmd_file': ReadOnlyFunction(self.ucmd_file),
+            'ucmdfile': ReadOnlyFunction(self.ucmd_file),
+            'delta': ReadOnlyFunction(self.delta),
 
             # Utility functions
-            'print_usets': self.print_usets, 
-            'list_usets': self.print_usets, 
-            'list_sets': self.print_usets,
+            'print_usets': ReadOnlyFunction(self.print_usets), 
+            'list_usets': ReadOnlyFunction(self.print_usets), 
+            'list_sets': ReadOnlyFunction(self.print_usets),
 
             'print_columns': print_columns,
-            'list_parms': self.print_columns_in_dataset,
-            'list_cols': self.print_columns_in_dataset,
+            'list_parms': ReadOnlyFunction(self.print_columns_in_dataset),
+            'list_cols': ReadOnlyFunction(self.print_columns_in_dataset),
 
             # Other functions
-            'clear': self.clear,
-            'restart': self.restart_program,
-            'help': self.help,
-            'save_png': self.save_png,
-            'save_ucmd': self.save_ucmd,
-            'cd': self.cd,
-            'pwd': self.pwd,
-            'ls': self.ls,
+            'clear': ReadOnlyFunction(self.clear),
+            'restart': ReadOnlyFunction(self.restart_program),
+            'help': ReadOnlyFunction(self.help),
+            'save_png': ReadOnlyFunction(self.save_png),
+            'save_ucmd': ReadOnlyFunction(self.save_ucmd),
+            'cd': ReadOnlyFunction(self.cd),
+            'pwd': ReadOnlyFunction(self.pwd),
+            'ls': ReadOnlyFunction(self.ls),
 
             'uset': [], #initialize empty list of datasets
-            'toggle_darkmode': self.toggled_darkmode
+            'toggle_darkmode': ReadOnlyFunction(self.toggled_darkmode)
         }
 
     def execute_startup_script(self):
@@ -398,8 +418,6 @@ class UniChart:
             hue_palette (str, optional): The palette for hue differentiation. Default is default_hue_palette.
             hue_order (list, optional): The order of hue levels. Default is None.
             line (bool, optional): If True, plot as a line plot. Default is False.
-            ignore_list (list, optional): List of titles to ignore. Default is [].
-            suppress_msg (bool, optional): If True, suppress messages. Default is False.
         """
         if x is None:
             x = self.last_x
@@ -612,6 +630,7 @@ class UniChart:
             filename = filename[:-4]
 
         temp_file_name = filename
+        i = 1
         while os.path.exists(f"{filename}.png"):
             filename = f"d{temp_file_name}_{i}"
             i += 1
@@ -651,13 +670,6 @@ class UniChart:
 
             builtin_functions = {
                 'plot': 'plot(x,y) - Plot the datasets in the environment on the x and y axes.',
-                'omit': 'omit(uset_slice) - Omit datasets from the plot.',
-                'select': 'select(uset_slice) - Select datasets and exclude rest for the plot.',
-                'restore': 'restore(uset_slice) - Restore previously omitted datasets.',
-                'query': 'query(uset_slice, query) - Query datasets in the environment.',
-                'color': 'color(uset_slice, color) - Set the color of datasets.',
-                'marker': 'marker(uset_slice, marker) - Set the marker of datasets.',
-                'linestyle': 'linestyle(uset_slice, linestyle) - Set the linestyle of datasets.',
                 'load_df': 'load_df(df) - Load a DataFrame into the environment as a dataset.',
                 'ucmd_file': 'ucmd_file(file_path) - Execute a ucmd file in the environment.',
                 'print_usets': 'print_usets() - Print the datasets in the environment.',
@@ -669,16 +681,31 @@ class UniChart:
                 'save_png': 'save_png(filename) - Save the current plot as a PNG file',
                 'save_ucmd': 'save_ucmd(filename) - Save the command history to a UCMD file.',
                 'cd': 'cd(path) - Change the current directory.',
-                'pwd': 'pwd() - Print the current directory.',
+                'pwd': 'pwd() - Print the current working directory.',
                 'ls': 'ls() - List files in the current directory.',
                 'uset': 'list of datasets in the environment',
                 'toggle_darkmode': 'toggle_darkmode() - Toggle dark mode for plots.',
                 'delta': 'delta(base_set, new_set, delta_parms, align_on, suffixes, store_all_parms, passed_parms) - Compute deltas between datasets.'
             }
 
+            selection_functions = {
+                'omit': 'omit(uset_slice) - Omit datasets from being selected for plotting.',
+                'select': 'select(uset_slice) - Select datasets for plotting.',
+                'restore': 'restore(uset_slice) - Restore previously omitted datasets.',
+                'query': 'query(uset_slice, query) - Apply a query to filter datasets.',
+            }
+
+            format_functions = {
+                'color': 'color(uset_slice, color) - Set the color of datasets.',
+                'marker': 'marker(uset_slice, marker) - Set the marker of datasets.',
+                'linestyle': 'linestyle(uset_slice, linestyle) - Set the linestyle of datasets.',
+            }
+
             max_len_lib = max(len(key) for key in libraries.keys())
             max_len_def = max(len(key) for key in defaults.keys())
             max_len_func = max(len(key) for key in builtin_functions.keys())
+            max_len_form = max(len(key) for key in format_functions.keys())
+            max_len_sel = max(len(key) for key in selection_functions.keys())
 
             print("Default Libraries:\n")
             for key, description in libraries.items():
@@ -691,6 +718,14 @@ class UniChart:
             print("\nDefault Attributes:\n")
             for key, description in defaults.items():
                 print(f"{key:<{max_len_def}} : {description}")
+
+            print("\nSelection functions:\n")
+            for key, description in selection_functions.items():
+                print(f"{key:<{max_len_sel}} : {description}")
+
+            print("\nFormmating functions:\n")
+            for key, description in format_functions.items():
+                print(f"{key:<{max_len_form}} : {description}")
 
     def create_menu(self):
         """
