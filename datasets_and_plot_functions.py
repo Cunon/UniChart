@@ -100,7 +100,7 @@ class Dataset:
         self.title = self.set_title = title if title else df["TITLE"].iloc[0] if "TITLE" in df.columns else "Untitled"
         self.index = index
         self.title_format = f"{self.title} {index}"
-        self._color = cm.tab10(index)
+        self._color = cm.tab10(index % 10)
         self._marker = marker_map(index)
         self._edge_color = "black"
         self._linestyle = None
@@ -573,6 +573,7 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
                     def add_parameter(parm, value, interp=False):
                         value_str = f'{value:.2f}' if isinstance(value, (int, float)) else f'{value}'
                         interp_str = ' (interp)' if interp else ''
+                        nonlocal annotation_text
                         annotation_text += '\n{:<15} {:<10}{}'.format(parm, value_str, interp_str)
 
                     if isinstance(sel.index, np.intc):
