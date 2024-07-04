@@ -200,6 +200,7 @@ class UniChart:
             'color': ReadOnlyFunction(self.color),  
             'marker': ReadOnlyFunction(self.marker),
             'linestyle': ReadOnlyFunction(self.linestyle),  
+            'hue': ReadOnlyFunction(self.hue),  
 
             # Data management
             'load_df': ReadOnlyFunction(self.load_df),
@@ -233,7 +234,7 @@ class UniChart:
         # Make specific keys read-only
         for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
                     'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
-                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode']:
+                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'hue']:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
@@ -583,34 +584,81 @@ class UniChart:
 
     def ucmd_file(self, file_path):
         """
-        Execute commands from a UCMD file.
+        Execute commands from a UCMD file line by line, handling indented blocks and loops.
 
         Args:
             file_path (str): The path to the UCMD file.
         """
         try:
             with open(file_path, 'r') as file:
-                commands = file.read()  # Read the entire file content
+                lines = file.readlines()
 
-            command_history = "\n".join([f"> {line}" for line in commands.splitlines()])
+            command_block = []
+            inside_block = False
+            block_indent = 0
+
+            for line in lines:
+                stripped_line = line.strip()
+                current_indent = len(line) - len(line.lstrip())
+
+                # If the line is not empty and inside a block, or the line starts a new block
+                if stripped_line and (inside_block or stripped_line.endswith(':') or current_indent > block_indent):
+                    if not inside_block:
+                        inside_block = True
+                        block_indent = current_indent
+
+                    command_block.append(line)
+                    
+                    # Check if the block ends
+                    if stripped_line.endswith(':'):
+                        continue
+
+                    # Reset block tracking if we are no longer inside a block
+                    if not stripped_line.endswith(':') and current_indent <= block_indent:
+                        inside_block = False
+                        block_indent = 0
+                        self.execute_command_block(command_block)
+                        command_block = []
+                else:
+                    if command_block:
+                        self.execute_command_block(command_block)
+                        command_block = []
+
+                    # Execute single line command
+                    if stripped_line:
+                        self.execute_command_block([line])
+
+            # Execute any remaining commands in the block
+            if command_block:
+                self.execute_command_block(command_block)
+
+        except Exception as e:
+            messagebox.showerror("File Execution Error", f"Could not execute file: {e}")
+
+    def execute_command_block(self, command_block):
+        """
+        Execute a block of commands.
+
+        Args:
+            command_block (list): The list of command lines to execute.
+        """
+        try:
+            commands = "\n".join(command_block)
+            command_history = "\n".join([f"> {line.strip()}" for line in command_block])
 
             self.history.configure(state='normal')
             self.history.insert(tk.END, f"{command_history}\n")
             self.history.configure(state='disabled')
             self.history.see(tk.END)
             
-            try:
-                exec(commands, {}, self.exec_env)
-            except Exception as e:
-                self.history.configure(state='normal')
-                self.history.insert(tk.END, f"Error: {e}\n")
-                self.history.configure(state='disabled')
-                self.history.see(tk.END)
-            
+            exec(commands, {}, self.exec_env)
             self.canvas.draw()
         except Exception as e:
-            messagebox.showerror("File Execution Error", f"Could not execute file: {e}")
-
+            self.history.configure(state='normal')
+            self.history.insert(tk.END, f"Error: {e}\n")
+            self.history.configure(state='disabled')
+            self.history.see(tk.END)
+            
     def navigate_history(self, event, direction):
         """
         Navigate through the command history.
@@ -723,6 +771,7 @@ class UniChart:
                 'color': 'color(uset_slice, color) - Set the color of datasets.',
                 'marker': 'marker(uset_slice, marker) - Set the marker of datasets.',
                 'linestyle': 'linestyle(uset_slice, linestyle) - Set the linestyle of datasets.',
+                'hue': 'hue(uset_slice, hue) - Color set by input parm.',
             }
 
             max_len_lib = max(len(key) for key in libraries.keys())
