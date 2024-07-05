@@ -7,6 +7,11 @@ from scipy.interpolate import interp1d
 import mplcursors
 from math import floor, ceil
 import numpy as np
+import warnings
+
+#Bandaide for mplcursors warning we don't need
+warnings.filterwarnings("ignore", message="Pick support for PolyCollection is missing.")
+
 default_hue_palette = sns.color_palette("YlOrRd_d", as_cmap=True)
 
 def validate_color(value):
