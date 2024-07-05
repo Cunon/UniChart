@@ -8,6 +8,7 @@ import pandas as pd
 import seaborn as sns
 from scipy.interpolate import interp1d
 import sys
+from DataFrameViewer import DataFrameManagerApp as DFV
 
 # Import functions
 from datasets_and_plot_functions import (
@@ -163,6 +164,9 @@ class UniChart:
         self.root.bind("<Control-o>", lambda event: self.load_file())        # Execute startup script if it exists
         self.execute_startup_script()
 
+    def get_exec_env(self):
+        return self.exec_env
+    
     def initialize_exec_env(self):
         """
         Initialize the execution environment for running commands.
@@ -174,6 +178,8 @@ class UniChart:
             'pd': pd,
             'sns': sns,
             'interp1d': interp1d,
+            'sys': sys,
+            'DFV': DFV,
 
             # Top level Plot formatting
             'display_parms': self.display_parms,
@@ -207,6 +213,7 @@ class UniChart:
             'ucmd_file': ReadOnlyFunction(self.ucmd_file),
             'ucmdfile': ReadOnlyFunction(self.ucmd_file),
             'delta': ReadOnlyFunction(self.delta),
+            'exec_env': ReadOnlyFunction(self.get_exec_env),
 
             # Utility functions
             'print_usets': ReadOnlyFunction(self.print_usets), 
@@ -235,7 +242,7 @@ class UniChart:
         # Make specific keys read-only
         for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
                     'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
-                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue']:
+                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys']:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
