@@ -228,13 +228,14 @@ class UniChart:
             'ls': ReadOnlyFunction(self.ls),
 
             'uset': [], #initialize empty list of datasets
-            'toggle_darkmode': ReadOnlyFunction(self.toggled_darkmode)
+            'toggle_darkmode': ReadOnlyFunction(self.toggle_darkmode),
+            'darkmode': ReadOnlyFunction(self.darkmode)
         })
 
         # Make specific keys read-only
         for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
                     'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
-                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'hue']:
+                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue']:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
@@ -819,7 +820,7 @@ class UniChart:
         menubar.add_cascade(label="About", menu=about_menu)
 
         settings_menu = tk.Menu(menubar, tearoff=0)
-        settings_menu.add_command(label="Toggle Dark Mode", command=self.toggled_darkmode)
+        settings_menu.add_command(label="Toggle Dark Mode", command=self.toggle_darkmode)
         menubar.add_cascade(label="Settings", menu=settings_menu)
 
     def load_file(self):
@@ -940,7 +941,7 @@ class UniChart:
             for additional_line in title_lines[1:]:
                 print(f"{' ':<8}{additional_line:<40}{' ':<10}{' ':<10}")
 
-    def toggled_darkmode(self):
+    def toggle_darkmode(self):
         """
         Toggle the dark mode for the plots.
         """
@@ -952,6 +953,12 @@ class UniChart:
 
         self.plot()  # Re-plot to apply the new style
 
+    def darkmode(self):
+        """
+        Toggle the dark mode for the plots.
+        """
+        self.dark_mode = True
+        self.plot()  # Re-plot to apply the new style
 
 class TextRedirector:
     """

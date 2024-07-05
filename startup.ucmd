@@ -1,8 +1,9 @@
-toggle_darkmode()
+darkmode()
 
 default_display_parms = ["A", "B"]
 
 df = pd.DataFrame({'x': [0], 'y': [0]})
+
 load_df(df)
 uset[0].title=""
 
@@ -10,6 +11,14 @@ omit(0)
 plot(x,y)
 
 uset=[]
+
+# Rename some variables for ease of use
 all = uset
+
+# Define some custom functions here
+def tprint(uset=uset):
+    print("hj")
+    for i in range(len(uset)):
+        print(uset[i].title)
 
 clear()

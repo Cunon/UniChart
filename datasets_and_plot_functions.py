@@ -53,7 +53,7 @@ def validate_linestyle(value):
     Returns:
         bool: True if the value is a valid linestyle, False otherwise.
     """
-    valid_linestyles = ['-', '--', '-.', ':', 'None', ' ', '', None]
+    valid_linestyles = ['-', '--', '-.', ':', 'None', ' ', '', None, False]
     return value in valid_linestyles
 
 
