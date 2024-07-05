@@ -205,6 +205,7 @@ class UniChart:
             # Set formatting
             'color': ReadOnlyFunction(self.color),  
             'marker': ReadOnlyFunction(self.marker),
+            'markersize': ReadOnlyFunction(self.markersize),
             'linestyle': ReadOnlyFunction(self.linestyle),  
             'hue': ReadOnlyFunction(self.hue),  
             'plot_type': ReadOnlyFunction(self.plot_type),  
@@ -244,7 +245,7 @@ class UniChart:
         for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
                     'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
                     'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
-                    'plot_type']:
+                    'plot_type', 'markersize']:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
@@ -430,8 +431,21 @@ class UniChart:
             uset_slice = self.get_uset_slice(uset_slice)
             for dataset in uset_slice:
                 dataset.marker = marker
+
+    def markersize(self, uset_slice=None, markersize=None):
+        """
+        Set the marker style for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to set markersize. Default is None.
+            markersize (str): The markersize style to set.
+        """
+        if isinstance(markersize, int):
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
+                dataset.markersize = markersize
         else:
-            print("Error: marker must be provided.")
+            print("Error: markersize must be an integer.")
 
     def linestyle(self, uset_slice=None, linestyle='solid'):
         """
