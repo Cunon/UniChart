@@ -12,7 +12,7 @@ import warnings
 #Bandaide for mplcursors warning we don't need
 warnings.filterwarnings("ignore", message="Pick support for PolyCollection is missing.")
 
-default_hue_palette = sns.color_palette("YlOrRd_d", as_cmap=True)
+default_hue_palette = sns.color_palette("viridis", as_cmap=True)
 
 def validate_color(value):
     """
@@ -513,7 +513,7 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             reg_order = title_dict.get('reg_order')
             index = title_dict.get('index', 0)
 
-            if linestyle is None:
+            if not linestyle:
                 if hue:
                     scatter = sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
                                         label=f"{index} : {title} colored on {hue}", palette=palette,

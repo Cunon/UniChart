@@ -10,4 +10,6 @@ omit(0)
 plot(x,y)
 
 uset=[]
+all = uset
+
 clear()
