@@ -8,6 +8,7 @@ import mplcursors
 from math import floor, ceil
 import numpy as np
 import warnings
+from matplotlib.tri import Triangulation
 
 #Bandaide for mplcursors warning we don't need
 warnings.filterwarnings("ignore", message="Pick support for PolyCollection is missing.")
@@ -119,6 +120,7 @@ class Dataset:
         self.set_type = 1   # 1 = normal, 2 = delta, 3 = delta with fit
         self.delta_sets = None # tuple of datasets for delta set
         self._display_parms = display_parms if display_parms else []
+        self._plot_type = 'scatter'
 
     @property
     def df(self):
@@ -231,6 +233,34 @@ class Dataset:
             raise ValueError(f"Invalid color value: {value}")
 
     @property
+    def plot_type(self):
+        """
+        Get the plot_type style used for plotting.
+
+        Returns:
+            str: The plot_type style.
+        """
+        return self._plot_type
+
+    @plot_type.setter
+    def plot_type(self, value):
+        """
+        Set the plot_type style used for plotting.
+
+        Args:
+            value (str): The new plot_type style.
+
+        Raises:
+            ValueError: If the marker style value is invalid.
+        """
+        valid_plot_types = ['scatter', 'contour']
+        if value in valid_plot_types:
+            self._plot_type = value
+        else:
+            raise ValueError(f"Invalid plot_type value: {value}")
+
+
+    @property
     def marker(self):
         """
         Get the marker style used for plotting.
@@ -339,7 +369,8 @@ class Dataset:
             'reg_order': self.reg_order,
             'index': self.index,
             'style': self.style,
-            'display_parms': self.display_parms
+            'display_parms': self.display_parms,
+            'plot_type': self.plot_type
         }
 
     def set_format_option(self, key, value):
@@ -403,7 +434,7 @@ def table_read(df, x_col, y_col, x_in):
     y_interp = f(x_in)
     return y_interp
 
-def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None, 
+def uniplot(list_of_datasets, x, y, plot_type=None, color=None, hue=None, marker=None, 
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
             hue_order=None, line=False, ignore_list=[], suppress_msg=False, 
             return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
@@ -512,46 +543,61 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             style = title_dict.get('style')
             reg_order = title_dict.get('reg_order')
             index = title_dict.get('index', 0)
+            plot_type = title_dict.get('plot_type', 0)
 
-            if not linestyle:
-                if hue:
-                    scatter = sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
-                                        label=f"{index} : {title} colored on {hue}", palette=palette,
-                                        legend=False, edgecolor=edge_color, linewidth=2)
-                    scatter.collections[-1].set_sizes([markersize**2])
-                    norm = plt.Normalize(df[hue].min(), df[hue].max())
-                    sm = plt.cm.ScalarMappable(cmap=palette, norm=norm)
-                    sm.set_array([])
-                    fig.colorbar(sm, ax=axes)
-                    axes.legend(prop={'size': 12})    
-                else:
-                    sns.scatterplot(data=df, x=x, y=y, ax=axes, color=color, marker=marker, 
-                                    alpha=alpha, style=style, label=f"{index} : {title}",
-                                    edgecolor=edge_color, linewidth=2)
-                    axes.collections[-1].set_sizes([markersize**2])
-                    axes.legend(prop={'size': 12})
-            else:
-                if hue:
-                    print("Unichart doesn't currently support lineplots with hue")
-                    sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
-                                    marker=marker, alpha=alpha, style=style, label=f"{index} : {title} colored on {hue}",
-                                    hue=hue, legend=False, size=markersize, palette=palette)
-                else:
-                    if isinstance(reg_order, (int, float)) and reg_order > 0:
-                        scatter_kws = {'s': markersize**2, 'edgecolor': marker_edge_color,  'alpha': alpha}
-                        line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
-                        sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
-                                    color=color, marker=marker, label=f"{index} : {title} Fit LS {reg_order}", 
-                                    order=reg_order, data=df.sort_values(by=x)) 
+            if plot_type == 'scatter':
+                if not linestyle:
+                    if hue:
+                        scatter = sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
+                                            label=f"{index} : {title} colored on {hue}", palette=palette,
+                                            legend=False, edgecolor=edge_color, linewidth=2)
+                        scatter.collections[-1].set_sizes([markersize**2])
+                        norm = plt.Normalize(df[hue].min(), df[hue].max())
+                        sm = plt.cm.ScalarMappable(cmap=palette, norm=norm)
+                        sm.set_array([])
+                        fig.colorbar(sm, ax=axes)
+                        axes.legend(prop={'size': 12})    
                     else:
-                        sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
-                                    marker=marker, alpha=alpha, style=style, label=f"{index} : {title} Fit ST")
+                        sns.scatterplot(data=df, x=x, y=y, ax=axes, color=color, marker=marker, 
+                                        alpha=alpha, style=style, label=f"{index} : {title}",
+                                        edgecolor=edge_color, linewidth=2)
+                        axes.collections[-1].set_sizes([markersize**2])
+                        axes.legend(prop={'size': 12})
+                else:
+                    if hue:
+                        print("Unichart doesn't currently support lineplots with hue")
+                        sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
+                                        marker=marker, alpha=alpha, style=style, label=f"{index} : {title} colored on {hue}",
+                                        hue=hue, legend=False, size=markersize, palette=palette)
+                    else:
+                        if isinstance(reg_order, (int, float)) and reg_order > 0:
+                            scatter_kws = {'s': markersize**2, 'edgecolor': marker_edge_color,  'alpha': alpha}
+                            line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
+                            sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
+                                        color=color, marker=marker, label=f"{index} : {title} Fit LS {reg_order}", 
+                                        order=reg_order, data=df.sort_values(by=x)) 
+                        else:
+                            sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
+                                        marker=marker, alpha=alpha, style=style, label=f"{index} : {title} Fit ST")
 
                 lines = axes.get_lines()
                 for line in lines:
                     if line.get_label() == title:
                         line.set_markersize(markersize)
                         line.set_markeredgecolor(marker_edge_color)
+            elif plot_type == 'contour':
+                    X = df[x]
+                    Y = df[y]
+                    Z = df[hue] if hue else df[y]
+
+                    triang = Triangulation(X, Y)
+                    contour = axes.tricontourf(triang, Z, cmap=hue_palette, linewidths=linestyle, alpha=alpha)
+
+                    if hue:
+                        norm = plt.Normalize(df[hue].min(), df[hue].max())
+                        sm = plt.cm.ScalarMappable(cmap=palette, norm=norm)
+                        sm.set_array([])
+                        fig.colorbar(sm, ax=axes)
 
         axes.set_xlabel(x, fontsize='x-large')
         axes.set_ylabel(y, fontsize='x-large')

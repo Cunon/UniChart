@@ -207,6 +207,7 @@ class UniChart:
             'marker': ReadOnlyFunction(self.marker),
             'linestyle': ReadOnlyFunction(self.linestyle),  
             'hue': ReadOnlyFunction(self.hue),  
+            'plot_type': ReadOnlyFunction(self.plot_type),  
 
             # Data management
             'load_df': ReadOnlyFunction(self.load_df),
@@ -242,7 +243,8 @@ class UniChart:
         # Make specific keys read-only
         for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
                     'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
-                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys']:
+                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
+                    'plot_type']:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
@@ -385,6 +387,21 @@ class UniChart:
                 dataset.color = color
         else:
             print("Error: color must be provided.")
+
+    def plot_type(self, uset_slice=None, plot_type=None):
+        """
+        Set the plot_type for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to color. Default is None.
+            plot_type (str): The plot_type to set.
+        """
+        if plot_type is not None:
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
+                dataset.plot_type = plot_type
+        else:
+            print("Error: plot_type must be provided.")
 
     def hue(self, uset_slice=None, hue=None):
         """
