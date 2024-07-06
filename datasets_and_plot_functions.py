@@ -434,11 +434,11 @@ def table_read(df, x_col, y_col, x_in):
     y_interp = f(x_in)
     return y_interp
 
-def uniplot(list_of_datasets, x, y, plot_type=None, color=None, hue=None, marker=None, 
+def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None, marker=None, 
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
             hue_order=None, line=False, ignore_list=[], suppress_msg=False, 
             return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
-            display_parms=None):
+            display_parms=None, grid=True):
 
     """
     Create a unified plot for a list of datasets.
@@ -482,6 +482,8 @@ def uniplot(list_of_datasets, x, y, plot_type=None, color=None, hue=None, marker
         axes.tick_params(axis='x', colors='white')
         axes.tick_params(axis='y', colors='white')
         legend_text_color = 'white'
+        if grid:
+            axes.grid(color='white', which='major', linestyle='-', alpha=0.1, linewidth=0.5, zorder=0)
     else:
         plt.style.use('default')
         fig.patch.set_facecolor('white')
@@ -496,6 +498,8 @@ def uniplot(list_of_datasets, x, y, plot_type=None, color=None, hue=None, marker
         axes.tick_params(axis='x', colors='black')
         axes.tick_params(axis='y', colors='black')
         legend_text_color = 'black'
+        if grid:
+            axes.grid(color='black', which='major', linestyle='-', alpha=0.1, linewidth=0.5, zorder=0)
 
     if suptitle:
         fig.suptitle(suptitle, fontsize='xx-large')
@@ -550,7 +554,7 @@ def uniplot(list_of_datasets, x, y, plot_type=None, color=None, hue=None, marker
                     if hue:
                         scatter = sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
                                             label=f"{index} : {title} colored on {hue}", palette=palette,
-                                            legend=False, edgecolor=edge_color, linewidth=2)
+                                            legend=False, edgecolor=edge_color, linewidth=2, zorder=index+1)
                         scatter.collections[-1].set_sizes([markersize**2])
                         norm = plt.Normalize(df[hue].min(), df[hue].max())
                         sm = plt.cm.ScalarMappable(cmap=palette, norm=norm)
@@ -560,7 +564,7 @@ def uniplot(list_of_datasets, x, y, plot_type=None, color=None, hue=None, marker
                     else:
                         sns.scatterplot(data=df, x=x, y=y, ax=axes, color=color, marker=marker, 
                                         alpha=alpha, style=style, label=f"{index} : {title}",
-                                        edgecolor=edge_color, linewidth=2)
+                                        edgecolor=edge_color, linewidth=2, zorder=index+1)
                         axes.collections[-1].set_sizes([markersize**2])
                         axes.legend(prop={'size': 12})
                 else:
@@ -568,17 +572,17 @@ def uniplot(list_of_datasets, x, y, plot_type=None, color=None, hue=None, marker
                         print("Unichart doesn't currently support lineplots with hue")
                         sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
                                         marker=marker, alpha=alpha, style=style, label=f"{index} : {title} colored on {hue}",
-                                        hue=hue, legend=False, size=markersize, palette=palette)
+                                        hue=hue, legend=False, size=markersize, palette=palette, zorder=index+1)
                     else:
                         if isinstance(reg_order, (int, float)) and reg_order > 0:
                             scatter_kws = {'s': markersize**2, 'edgecolor': marker_edge_color,  'alpha': alpha}
                             line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
                             sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
                                         color=color, marker=marker, label=f"{index} : {title} Fit LS {reg_order}", 
-                                        order=reg_order, data=df.sort_values(by=x)) 
+                                        order=reg_order, data=df.sort_values(by=x), zorder=index+1) 
                         else:
                             sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
-                                        marker=marker, alpha=alpha, style=style, label=f"{index} : {title} Fit ST")
+                                        marker=marker, alpha=alpha, style=style, label=f"{index} : {title} Fit ST", zorder=index+1)
 
                 lines = axes.get_lines()
                 for line in lines:
@@ -588,7 +592,7 @@ def uniplot(list_of_datasets, x, y, plot_type=None, color=None, hue=None, marker
             elif plot_type == 'contour':
                     X = df[x]
                     Y = df[y]
-                    Z = df[hue] if hue else df[y]
+                    Z = df[z] if z else df[hue]
 
                     triang = Triangulation(X, Y)
                     contour = axes.tricontourf(triang, Z, cmap=hue_palette, linewidths=linestyle, alpha=alpha)

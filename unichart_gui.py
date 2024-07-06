@@ -462,7 +462,7 @@ class UniChart:
         else:
             print("Error: linestyle must be provided.")
 
-    def plot(self, x=None, y=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
+    def plot(self, x=None, y=None, z=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
              marker=None, markersize=12, marker_edge_color=None,
              hue_palette=default_hue_palette, hue_order=None, line=False, 
              ignore_list=[], suppress_msg=False, display_parms=None):
@@ -502,7 +502,7 @@ class UniChart:
         suptitle = self.exec_env['suptitle']
         display_parms = self.exec_env['display_parms']
 
-        uniplot(uset, x, y, return_axes=False, suptitle=suptitle, display_parms=display_parms, axes=ax, dark_mode=self.dark_mode)
+        uniplot(uset, x, y, return_axes=False, suptitle=suptitle, grid=True, display_parms=display_parms, axes=ax, dark_mode=self.dark_mode)
         
         self.canvas.draw()  # Update the canvas
 
