@@ -27,26 +27,6 @@ def print_columns(df):
     for i, col in enumerate(df.columns):
         print(f"{i:<10}{col:<30}")
 
-class ReadOnlyFunction:
-    """
-    A class to wrap a function and make it read-only.
-    """
-
-    def __init__(self, func):
-        self.func = func
-
-    def __call__(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
-
-    def __setattr__(self, name, value):
-        """
-        Prevent setting attributes on the ReadOnlyFunction instance.
-        """
-        if name == 'func':
-            super().__setattr__(name, value)
-        else:
-            raise AttributeError("Cannot modify read-only function")
-
 class ReadOnlyDict(dict):
     """
     A dictionary that prevents overwriting of specific read-only keys.
@@ -194,51 +174,51 @@ class UniChart:
             'Dataset': Dataset,
 
             # Loaded Functions
-            'plot': ReadOnlyFunction(self.plot),  
+            'plot':self.plot,  
 
             # Selection and filtering
-            'omit': ReadOnlyFunction(self.omit),
-            'select': ReadOnlyFunction(self.select),
-            'restore': ReadOnlyFunction(self.restore),
-            'query': ReadOnlyFunction(self.query),
+            'omit':self.omit,
+            'select':self.select,
+            'restore':self.restore,
+            'query':self.query,
 
             # Set formatting
-            'color': ReadOnlyFunction(self.color),  
-            'marker': ReadOnlyFunction(self.marker),
-            'markersize': ReadOnlyFunction(self.markersize),
-            'linestyle': ReadOnlyFunction(self.linestyle),  
-            'hue': ReadOnlyFunction(self.hue),  
-            'plot_type': ReadOnlyFunction(self.plot_type),  
+            'color':self.color,  
+            'marker':self.marker,
+            'markersize':self.markersize,
+            'linestyle':self.linestyle,  
+            'hue':self.hue,  
+            'plot_type':self.plot_type,  
 
             # Data management
-            'load_df': ReadOnlyFunction(self.load_df),
-            'ucmd_file': ReadOnlyFunction(self.ucmd_file),
-            'ucmdfile': ReadOnlyFunction(self.ucmd_file),
-            'delta': ReadOnlyFunction(self.delta),
-            'exec_env': ReadOnlyFunction(self.get_exec_env),
+            'load_df':self.load_df,
+            'ucmd_file':self.ucmd_file,
+            'ucmdfile':self.ucmd_file,
+            'delta':self.delta,
+            'exec_env':self.get_exec_env,
 
             # Utility functions
-            'print_usets': ReadOnlyFunction(self.print_usets), 
-            'list_usets': ReadOnlyFunction(self.print_usets), 
-            'list_sets': ReadOnlyFunction(self.print_usets),
+            'print_usets':self.print_usets, 
+            'list_usets':self.print_usets, 
+            'list_sets':self.print_usets,
 
             'print_columns': print_columns,
-            'list_parms': ReadOnlyFunction(self.print_columns_in_dataset),
-            'list_cols': ReadOnlyFunction(self.print_columns_in_dataset),
+            'list_parms':self.print_columns_in_dataset,
+            'list_cols':self.print_columns_in_dataset,
 
             # Other functions
-            'clear': ReadOnlyFunction(self.clear),
-            'restart': ReadOnlyFunction(self.restart_program),
-            'help': ReadOnlyFunction(self.help),
-            'save_png': ReadOnlyFunction(self.save_png),
-            'save_ucmd': ReadOnlyFunction(self.save_ucmd),
-            'cd': ReadOnlyFunction(self.cd),
-            'pwd': ReadOnlyFunction(self.pwd),
-            'ls': ReadOnlyFunction(self.ls),
+            'clear':self.clear,
+            'restart':self.restart_program,
+            'help':self.help,
+            'save_png':self.save_png,
+            'save_ucmd':self.save_ucmd,
+            'cd':self.cd,
+            'pwd':self.pwd,
+            'ls':self.ls,
 
             'uset': [], #initialize empty list of datasets
-            'toggle_darkmode': ReadOnlyFunction(self.toggle_darkmode),
-            'darkmode': ReadOnlyFunction(self.darkmode)
+            'toggle_darkmode':self.toggle_darkmode,
+            'darkmode': self.darkmode
         })
 
         # Make specific keys read-only
