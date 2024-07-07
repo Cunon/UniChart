@@ -160,6 +160,7 @@ class UniChart:
             'interp1d': interp1d,
             'sys': sys,
             'DFV': DFV,
+            'ReadOnlyDict': ReadOnlyDict,
 
             # Top level Plot formatting
             'display_parms': self.display_parms,
