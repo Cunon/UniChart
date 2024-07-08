@@ -41,7 +41,7 @@ def validate_marker(value):
     Returns:
         bool: True if the value is a valid marker, False otherwise.
     """
-    valid_markers = ['o', 's', 'D', 'd', 'v', '^', '<', '>', 'p', '*', 'h', 'H', 'x', 'X', '+', '|', '_']
+    valid_markers = ['o', 's', 'D', 'd', 'v', '^', '<', '>', 'p', '*', 'h', 'H', 'x', 'X', '+', '|', '_', ".", None]
     return value in valid_markers
 
 def validate_linestyle(value):

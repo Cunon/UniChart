@@ -1,5 +1,7 @@
 import sys 
 import numpy as np
+import os
+
 
 darkmode()
 
@@ -34,7 +36,5 @@ def launchDFV(exec_env=exec_env()):
     DFV = exec_env['DFV']
     app = DFV(global_vars=exec_env)
     app.mainloop()
-
-
 
 clear()

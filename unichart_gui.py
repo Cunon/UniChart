@@ -400,7 +400,7 @@ class UniChart:
         else:
             print("Error: hue must be provided.")
 
-    def marker(self, uset_slice=None, marker=None):
+    def marker(self, uset_slice=None, marker=False):
         """
         Set the marker style for datasets.
 
@@ -408,7 +408,7 @@ class UniChart:
             uset_slice (list or Dataset, optional): The list of datasets or a single dataset to set marker. Default is None.
             marker (str): The marker style to set.
         """
-        if marker is not None:
+        if marker is not False:
             uset_slice = self.get_uset_slice(uset_slice)
             for dataset in uset_slice:
                 dataset.marker = marker
@@ -558,36 +558,28 @@ class UniChart:
                 uset[-1].title = f"Delta set {base_set.index}-{new_set.index}"
 
     def execute_command(self, event):
-        """
-        Execute a command entered in the entry widget.
-
-        Args:
-            event (tk.Event): The event that triggered the command execution.
-        """
         command = self.entry.get("1.0", tk.END).strip()
         if command:
-            # Add command to history
             self.command_history.append(command)
             if len(self.command_history) > 1000:
                 self.command_history.pop(0)
             self.history_index = -1
 
             self.history.configure(state='normal')
-            self.history.insert(tk.END, f"> {command}\n")
+            self.history.insert(tk.END, f"> {command}\n", "stdcmd")  # Use 'stderr' for bold and red
             self.history.configure(state='disabled')
-            self.history.see(tk.END)
             self.entry.delete("1.0", 'end-1c')
 
-            # Execute the command in the plotting environment
             try:
                 exec(command, {}, self.exec_env)
                 self.canvas.draw()
             except Exception as e:
                 self.history.configure(state='normal')
-                self.history.insert(tk.END, f"Error: {e}\n")
+                self.history.insert(tk.END, f"Error: {e}\n", "stderr")
                 self.history.configure(state='disabled')
-                self.history.see(tk.END)
+            self.history.see(tk.END)
         return 'break'
+
 
     def add_newline(self, event):
         """
@@ -651,7 +643,7 @@ class UniChart:
             # Execute any remaining commands in the block
             if command_block:
                 self.execute_command_block(command_block)
-
+            print("\n")
         except Exception as e:
             messagebox.showerror("File Execution Error", f"Could not execute file: {e}")
 
@@ -664,20 +656,33 @@ class UniChart:
         """
         try:
             commands = "\n".join(command_block)
-            command_history = "\n".join([f"> {line.strip()}" for line in command_block])
-
             self.history.configure(state='normal')
-            self.history.insert(tk.END, f"{command_history}\n")
+            
+            # Iterate over each line in the command block to apply styling
+            for line in command_block:
+                command = line.strip()
+                if command:
+                    # Check for comments within the command
+                    comment_index = command.find('#')
+                    if comment_index != -1:
+                        # Split the command at the comment and insert each part with appropriate tags
+                        self.history.insert(tk.END, f"> {command[:comment_index]}", "stdcmd") 
+                        self.history.insert(tk.END, command[comment_index:], "comment")  
+                        self.history.insert(tk.END, "\n", "comment") 
+                    else:
+                        self.history.insert(tk.END, f"> {command}\n", "stdcmd")
             self.history.configure(state='disabled')
             self.history.see(tk.END)
             
+            # Execute the commands within the local execution environment
             exec(commands, {}, self.exec_env)
             self.canvas.draw()
         except Exception as e:
             self.history.configure(state='normal')
-            self.history.insert(tk.END, f"Error: {e}\n")
+            self.history.insert(tk.END, f"Error: {e}\n", "stderr")
             self.history.configure(state='disabled')
             self.history.see(tk.END)
+
             
     def navigate_history(self, event, direction):
         """
@@ -854,11 +859,14 @@ class UniChart:
             try:
                 if file_path.endswith('.csv'):
                     df = pd.read_csv(file_path)
+                    print(f"> load_df(pd.read_csv('{file_path}'))")
                     self.load_df(df)
                 elif file_path.endswith('.xlsx'):
                     df = pd.read_excel(file_path)
+                    print(f"> load_df(pd.read_excel('{file_path}'))")
                     self.load_df(df)
                 elif file_path.endswith('.ucmd'):
+                    # print(f"> ucmd_file('{file_path}')")
                     self.ucmd_file(file_path)
                 else:
                     messagebox.showerror("File Type Error", "Unsupported file type.")
@@ -885,7 +893,8 @@ class UniChart:
 
     def save_ucmd(self, filename=None):
         """
-        Save the history lines starting with '> ' to a text file without the '> ' prefix.
+        Save the history lines starting with '> ' to a text file without the '> ' prefix,
+        only including lines after the last 'restart()' command.
 
         Args:
             filename (str): The name of the file to save the history to.
@@ -893,6 +902,7 @@ class UniChart:
         if filename is None:
             filename = "default_ucmd_file.ucmd"
 
+        i = 0
         temp_file_name = filename
         while os.path.exists(filename):
             filename = f"{temp_file_name}_{i}.ucmd"
@@ -905,8 +915,13 @@ class UniChart:
         history_text = self.history.get("1.0", tk.END).splitlines()
         self.history.configure(state='disabled')
 
+        last_restart_index = -1
+        for index, line in enumerate(history_text):
+            if 'restart()' in line.strip():
+                last_restart_index = index
+
         with open(filename, 'w') as file:
-            for line in history_text:
+            for line in history_text[last_restart_index+1:]:
                 if line.startswith("> "):
                     file.write(line[2:] + '\n')
 
@@ -980,42 +995,31 @@ class UniChart:
         self.plot()  # Re-plot to apply the new style
 
 class TextRedirector:
-    """
-    A class to redirect stdout and stderr to a Tkinter Text widget.
-
-    Attributes:
-        widget (tk.Text): The Text widget to redirect output to.
-        tag (str): The tag to use for the redirected output.
-    """
-
     def __init__(self, widget, tag="stdout"):
-        """
-        Initialize the TextRedirector.
-
-        Args:
-            widget (tk.Text): The Text widget to redirect output to.
-            tag (str): The tag to use for the redirected output. Default is "stdout".
-        """
         self.widget = widget
         self.tag = tag
+        # Configure tags for different output styles
+        self.widget.tag_configure("stdout", foreground="black")
+        self.widget.tag_configure("stdcmd", foreground="black", font='TkDefaultFont 9 bold')
+        self.widget.tag_configure("stderr", foreground="red")
+        self.widget.tag_configure("comment", foreground="green", font="TkDefaultFont 9 italic")
 
     def write(self, str):
-        """
-        Write a string to the Text widget.
-
-        Args:
-            str (str): The string to write.
-        """
         self.widget.configure(state='normal')
-        self.widget.insert(tk.END, str, (self.tag,))
+        if self.tag == "stdout":
+            # Check each line for comments
+            for line in str.splitlines(True):
+                comment_index = line.find('#')
+                if comment_index != -1:
+                    # Split the line at the comment and insert each part with appropriate tags
+                    self.widget.insert(tk.END, line[:comment_index], "stdout")
+                    self.widget.insert(tk.END, line[comment_index:], "comment")
+                else:
+                    self.widget.insert(tk.END, line, "stdout")
+        else:
+            self.widget.insert(tk.END, str, self.tag)
         self.widget.configure(state='disabled')
         self.widget.see(tk.END)
-
-    def flush(self):
-        """
-        Flush the stream (no-op for this implementation).
-        """
-        pass
 
 if __name__ == "__main__":
     root = tk.Tk()
