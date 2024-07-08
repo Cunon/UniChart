@@ -36,5 +36,3 @@ def launchDFV(exec_env=exec_env()):
     DFV = exec_env['DFV']
     app = DFV(global_vars=exec_env)
     app.mainloop()
-
-clear()

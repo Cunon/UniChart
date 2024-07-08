@@ -234,13 +234,15 @@ class UniChart:
         Execute the startup.ucmd script if it exists in the same directory.
         """
             
-        color_file = os.path.join(os.path.dirname(__file__), "xkcd_colors.ucmd")
+        color_file = os.path.join(os.path.dirname(__file__), "css_colors.ucmd")
         if os.path.isfile(color_file):
             self.ucmd_file(color_file)
-            
+
         startup_file = os.path.join(os.path.dirname(__file__), "startup.ucmd")
         if os.path.isfile(startup_file):
             self.ucmd_file(startup_file)
+
+        self.clear()
 
 
     def cd(self, path):
@@ -936,6 +938,7 @@ class UniChart:
         Restart the execution environment.
         """
         self.initialize_exec_env()
+        self.execute_startup_script()
         print("Environment restarted")
 
     def exit_app(self):
