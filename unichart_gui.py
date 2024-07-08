@@ -233,9 +233,15 @@ class UniChart:
         """
         Execute the startup.ucmd script if it exists in the same directory.
         """
+            
+        color_file = os.path.join(os.path.dirname(__file__), "xkcd_colors.ucmd")
+        if os.path.isfile(color_file):
+            self.ucmd_file(color_file)
+            
         startup_file = os.path.join(os.path.dirname(__file__), "startup.ucmd")
         if os.path.isfile(startup_file):
             self.ucmd_file(startup_file)
+
 
     def cd(self, path):
         try:
