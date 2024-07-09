@@ -5,7 +5,7 @@ import pandas as pd
 import sys
 
 # Opt-in to the future behavior
-pd.set_option('future.no_silent_downcasting', True)
+# pd.set_option('future.no_silent_downcasting', True)
 
 def launchDFV():
     # Get the main module

@@ -604,7 +604,7 @@ class UniChart:
 
     def ucmd_file(self, file_path):
         """
-        Execute commands from a UCMD file line by line, handling indented blocks and loops.
+        Execute commands from a UCMD file line by line, handling indented blocks and multi-line commands.
 
         Args:
             file_path (str): The path to the UCMD file.
@@ -616,10 +616,26 @@ class UniChart:
             command_block = []
             inside_block = False
             block_indent = 0
+            inside_multiline = False
 
             for line in lines:
                 stripped_line = line.strip()
                 current_indent = len(line) - len(line.lstrip())
+
+                if inside_multiline:
+                    command_block.append(line)
+                    if stripped_line.endswith(']') or stripped_line.endswith('}') or stripped_line.endswith(')'):
+                        inside_multiline = False
+                        inside_block = False
+                        block_indent = 0
+                        self.execute_command_block(command_block)
+                        command_block = []
+                    continue
+
+                if stripped_line.endswith('[') or stripped_line.endswith('{') or stripped_line.endswith('('):
+                    inside_multiline = True
+                    command_block.append(line)
+                    continue
 
                 # If the line is not empty and inside a block, or the line starts a new block
                 if stripped_line and (inside_block or stripped_line.endswith(':') or current_indent > block_indent):

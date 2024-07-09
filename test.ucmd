@@ -1,0 +1,53 @@
+# Change the working directory to the location of the file
+# os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+df = sns.load_dataset('flights')
+
+df1950 = df[df['year']== 1950].copy()
+df1952 = df[df['year']== 1952].copy()
+df1953 = df[df['year']== 1953].copy()
+df1960 = df[df['year']== 1960].copy()
+
+alts = [
+    -2000,
+    0,
+    5000,
+    10000,
+    12500,
+    14000,
+    14500,
+    15000,
+    17500,
+    20000,
+    22500,
+    25000,
+    30000,
+    35000,
+    40000,
+    48000
+]
+
+for alt in alts:
+    print(alt)
+
+fdasfs
+
+load_df(df1950)
+uset[0].title = "1950"
+
+load_df(df1952)
+uset[1].title = "1952"
+
+load_df(df1953)
+uset[2].title = "1953"
+
+load_df(df1960)
+uset[3].title = "1960"
+
+color(uset[1], 'blue')
+color(uset[0], 'black')
+
+marker(uset[0:3], 'H')
+
+plot("month", "passengers")
+# save_png("passengers")
