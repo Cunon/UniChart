@@ -193,6 +193,8 @@ class UniChart:
 
             # Data management
             'load_df':self.load_df,
+            'fucmd':self.fast_ucmd,
+            'fast_ucmd':self.fast_ucmd,
             'ucmd_file':self.ucmd_file,
             'ucmdfile':self.ucmd_file,
             'delta':self.delta,
@@ -601,6 +603,38 @@ class UniChart:
         """
         self.entry.insert(tk.INSERT, '\n')
         return 'break'
+
+
+    def fast_ucmd(self, file_path):
+        """
+        Execute commands from a UCMD file.
+
+        Args:
+            file_path (str): The path to the UCMD file.
+        """
+        try:
+            with open(file_path, 'r') as file:
+                commands = file.read()  # Read the entire file content
+
+            command_history = "\n".join([f"> {line}" for line in commands.splitlines()])
+
+            self.history.configure(state='normal')
+            self.history.insert(tk.END, f"{command_history}\n")
+            self.history.configure(state='disabled')
+            self.history.see(tk.END)
+            
+            try:
+                exec(commands, {}, self.exec_env)
+            except Exception as e:
+                self.history.configure(state='normal')
+                self.history.insert(tk.END, f"Error: {e}\n")
+                self.history.configure(state='disabled')
+                self.history.see(tk.END)
+            
+            self.canvas.draw()
+        except Exception as e:
+            messagebox.showerror("File Execution Error", f"Could not execute file: {e}")
+
 
     def ucmd_file(self, file_path):
         """
