@@ -1,0 +1,27 @@
+
+print("starting for loop")
+
+for i in range(5):
+    print("i = ", i)
+    for j in range(3):
+        print("j = ", j)
+
+
+testlist = [1, 
+2,
+3, 
+4, 
+5]
+
+for i in testlist:
+    print("i = ", i)
+
+
+def testfunc():
+    print("testfunc called")
+
+    for i in range(3):
+        print("i = ", i)
+
+testfunc()
+

@@ -604,7 +604,7 @@ class UniChart:
 
     def ucmd_file(self, file_path):
         """
-        Execute commands from a UCMD file line by line, handling indented blocks and multi-line commands.
+        Execute commands from a UCMD file, handling indented blocks, multi-line commands, and syntax errors.
 
         Args:
             file_path (str): The path to the UCMD file.
@@ -614,62 +614,54 @@ class UniChart:
                 lines = file.readlines()
 
             command_block = []
-            inside_block = False
-            block_indent = 0
             inside_multiline = False
+            block_indent = None
+
+            def execute_and_reset_block():
+                if command_block:
+                    self.execute_command_block(command_block)
+                    command_block.clear()
 
             for line in lines:
                 stripped_line = line.strip()
-                current_indent = len(line) - len(line.lstrip())
+                if not stripped_line:
+                    continue  # Skip empty lines
+                
+                current_indent = len(line) - len(stripped_line)
 
+                # Handle multiline structures
                 if inside_multiline:
                     command_block.append(line)
-                    if stripped_line.endswith(']') or stripped_line.endswith('}') or stripped_line.endswith(')'):
+                    # Detect the end of multiline structure
+                    if stripped_line.endswith((']', '}', ')')):
                         inside_multiline = False
-                        inside_block = False
-                        block_indent = 0
-                        self.execute_command_block(command_block)
-                        command_block = []
+                        execute_and_reset_block()
                     continue
 
-                if stripped_line.endswith('[') or stripped_line.endswith('{') or stripped_line.endswith('('):
+                # Detect the start of a multiline structure
+                if stripped_line.endswith(('[', '{', '(')):
                     inside_multiline = True
                     command_block.append(line)
                     continue
 
-                # If the line is not empty and inside a block, or the line starts a new block
-                if stripped_line and (inside_block or stripped_line.endswith(':') or current_indent > block_indent):
-                    if not inside_block:
-                        inside_block = True
-                        block_indent = current_indent
+                if block_indent is None:
+                    block_indent = current_indent  # Start of a new block
 
+                # Append line to the current block
+                if current_indent >= block_indent:
                     command_block.append(line)
-                    
-                    # Check if the block ends
-                    if stripped_line.endswith(':'):
-                        continue
-
-                    # Reset block tracking if we are no longer inside a block
-                    if not stripped_line.endswith(':') and current_indent <= block_indent:
-                        inside_block = False
-                        block_indent = 0
-                        self.execute_command_block(command_block)
-                        command_block = []
                 else:
-                    if command_block:
-                        self.execute_command_block(command_block)
-                        command_block = []
-
-                    # Execute single line command
-                    if stripped_line:
-                        self.execute_command_block([line])
+                    # We have dedented, meaning the end of the current block
+                    execute_and_reset_block()
+                    block_indent = current_indent
+                    command_block.append(line)
 
             # Execute any remaining commands in the block
-            if command_block:
-                self.execute_command_block(command_block)
-            print("\n")
+            execute_and_reset_block()
+
         except Exception as e:
             messagebox.showerror("File Execution Error", f"Could not execute file: {e}")
+
 
     def execute_command_block(self, command_block):
         """
