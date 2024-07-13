@@ -626,7 +626,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                     annotation_text += '\n' + '-'*26  # Add a separator line
 
                     def add_parameter(parm, value, interp=False):
-                        value_str = f'{value:.2f}' if isinstance(value, (int, float)) else f'{value}'
+                        value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else f'{value}'
                         interp_str = ' (interp)' if interp else ''
                         nonlocal annotation_text
                         annotation_text += '\n{:<15} {:<10}{}'.format(parm, value_str, interp_str)
@@ -636,7 +636,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                             if parm in selected_df.columns:
                                 value = selected_df[parm].iloc[sel.index]
                                 add_parameter(parm, value)
-                    elif isinstance(sel.index, np.float64):
+                    elif isinstance(value, (int, float, np.integer, np.floating)):
                         try:
                             float_index = float(sel.index)
                             low_index = floor(float_index)
