@@ -699,10 +699,7 @@ class UniChart:
 
     def execute_command_block(self, command_block):
         """
-        Execute a block of commands.
-
-        Args:
-            command_block (list): The list of command lines to execute.
+        Execute a multi line block of commands.
         """
         try:
             commands = "\n".join(command_block)
@@ -1046,6 +1043,8 @@ class UniChart:
         self.plot()  # Re-plot to apply the new style
 
 class TextRedirector:
+    # Format text in textbox widget based on context
+
     def __init__(self, widget, tag="stdout"):
         self.widget = widget
         self.tag = tag

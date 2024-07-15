@@ -617,19 +617,26 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                 selected_dataset = list_of_datasets[set_number]
                 selected_df = selected_dataset.df
 
-                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {selected_dataset.title}'
+                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset {selected_dataset.index}: {selected_dataset.title}'
                 effective_display_parms = display_parms if display_parms else dataset.display_parms
 
                 if effective_display_parms:
-                    header = '\n{:<15} {:<10}'.format('Parameter', 'Value')
+                    header = '\n{:<25} {:<5}'.format('Parameter', 'Value')
                     annotation_text += header
-                    annotation_text += '\n' + '-'*26  # Add a separator line
+                    annotation_text += '\n' + '-'*35  # Add a separator line
 
                     def add_parameter(parm, value, interp=False):
-                        value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else f'{value}'
+                        # Convert value to string with appropriate formatting
+                        value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else str(value)
                         interp_str = ' (interp)' if interp else ''
+                        
+                        # Adjust the format specifiers for left and right alignment
+                        # Assuming 15 characters for parameters and 10 for values, adjust as necessary
+                        formatted_line = f'{parm:<20} {value_str:>10}{interp_str}'
+                        
+                        # Append the formatted line to the annotation text
                         nonlocal annotation_text
-                        annotation_text += '\n{:<15} {:<10}{}'.format(parm, value_str, interp_str)
+                        annotation_text += '\n' + formatted_line
 
                     if isinstance(sel.index, np.intc):
                         for parm in effective_display_parms:
