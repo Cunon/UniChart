@@ -507,15 +507,14 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
         fig.suptitle(f"{x} vs {y}", fontsize='xx-large')
 
     notitle_count = 0
-    for dataset in list_of_datasets:
-        df = dataset.df
-        if "TITLE" not in df.columns:
-            df["TITLE"] = f"Default Title"
-            notitle_count += 1
 
     for dataset in list_of_datasets:
         if dataset.select:
             df = dataset.df
+            if "TITLE" not in df.columns:
+                df["TITLE"] = f"Default Title"
+                notitle_count += 1
+
             if x not in df.columns:
                 if x.upper() in df.columns:
                     x = x.upper()
@@ -596,6 +595,8 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
 
                     triang = Triangulation(X, Y)
                     contour = axes.tricontourf(triang, Z, cmap=hue_palette, linewidths=linestyle, alpha=alpha)
+                    for i, coll in enumerate(contour.collections):
+                        coll.set_label(f"{dataset.index} : {title} _contour_{i}")
 
                     if hue:
                         norm = plt.Normalize(df[hue].min(), df[hue].max())
@@ -613,7 +614,12 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
             @cursor.connect("add")
             def on_add(sel):
                 selected_title = sel.artist.get_label()
-                set_number = int(selected_title.split()[0])
+                try:
+                    set_number = int(selected_title.split()[0])
+                except ValueError:
+                    # Handle unexpected label formats
+                    print(f"Unexpected label format: {selected_title}")
+                    return
                 selected_dataset = list_of_datasets[set_number]
                 selected_df = selected_dataset.df
 
@@ -623,10 +629,9 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                 if effective_display_parms:
                     header = '\n{:<25} {:<5}'.format('Parameter', 'Value')
                     annotation_text += header
-                    annotation_text += '\n' + '-'*35  # Add a separator line
+                    annotation_text += '\n' + '-'*35
 
                     def add_parameter(parm, value, interp=False):
-                        # Convert value to string with appropriate formatting
                         value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else str(value)
                         interp_str = ' (interp)' if interp else ''
                         
@@ -634,7 +639,6 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                         # Assuming 15 characters for parameters and 10 for values, adjust as necessary
                         formatted_line = f'{parm:<20} {value_str:>10}{interp_str}'
                         
-                        # Append the formatted line to the annotation text
                         nonlocal annotation_text
                         annotation_text += '\n' + formatted_line
 
@@ -643,7 +647,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                             if parm in selected_df.columns:
                                 value = selected_df[parm].iloc[sel.index]
                                 add_parameter(parm, value)
-                    elif isinstance(value, (int, float, np.integer, np.floating)):
+                    elif isinstance(sel.index, (int, float, np.integer, np.floating)):
                         try:
                             float_index = float(sel.index)
                             low_index = floor(float_index)
@@ -658,7 +662,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                             print(f"Error: {e}")
                             return
                     else:
-                        print("Invalid index type for display parameters")
+                        print(f"Invalid index: {sel.index}, Type: {type(sel.index)}")
                         return
                     
                 sel.annotation.set(text=annotation_text, color='black')
