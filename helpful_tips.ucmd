@@ -1,0 +1,47 @@
+
+valid_markers = [
+    'o',   # Circle 
+    's',   # Square 
+    'D',   # Diamond
+    'd',   # Thin Diamond 
+    'v',   # Triangle Down
+    '^',   # Triangle Up 
+    '<',   # Triangle Left
+    '>',   # Triangle Right
+    'p',   # Pentagon 
+    '*',   # Star 
+    'h',   # Hexagon1 
+    'H',   # Hexagon2 
+    'x',   # x 
+    'X',   # X
+    '+',   # Plus 
+    '|',   # Vertical Line
+    '_',   # Horizontal Line
+    '.',   # Point 
+    None   # No marker 
+]
+
+valid_linestyles = [
+    '-',      # Solid Line
+    '--',     # Dashed Line
+    '-.',     # Dash-dot Line
+    ':',      # Dotted Line
+    'None',   # No Line
+    ' ',      # No Line
+    '',       # No Line
+    None,     # No Line
+    False     # No Line
+]
+
+#hue 
+
+# Ctrl+O can load ucmd files or dataframe compatible files (csv, xlsx, etc.)
+
+df = pd.DataFrame({'x': [0, 1, 2, 3, 4, 5], 'y': [0, 1, 4, 9, 16, 25], 'z': [0, 1, 8, 27, 64, 125]})
+load_df(df)
+uset[0].title="Set 0"
+hue(0, z)
+
+suptitle = "This is the title of the plot"
+display_parms = ["x", "y", "z"]
+plot(x,y)
