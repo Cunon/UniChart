@@ -101,6 +101,7 @@ class Dataset:
             title (str): The title of the dataset. Default is None.
         """
         self._df_full = df
+        self._df_filtered = df
         self.query = None
         self._select = True
         self.title = self.set_title = title if title else df["TITLE"].iloc[0] if "TITLE" in df.columns else "Untitled"
@@ -130,17 +131,7 @@ class Dataset:
         Returns:
             pd.DataFrame: The filtered DataFrame.
         """
-        if not self.query:
-            return self._df_full
-        try:
-            result_df = self._df_full.query(self.query)
-            if not result_df.empty:
-                return result_df
-            else:
-                print(f"No data in set {self.index} after query: {self.query}. Turning Set Off...")
-                self.select = False
-        except Exception as e:
-            raise ValueError(f"Query error: {e}")
+        return self._df_filtered
 
     @df.setter
     def df(self, value):
@@ -151,6 +142,34 @@ class Dataset:
             value (pd.DataFrame): The new DataFrame.
         """
         self._df_full = value
+        self._apply_query()
+
+    @property
+    def query(self):
+        return self._query
+
+    @query.setter
+    def query(self, value):
+        self._query = value
+        self._apply_query()
+
+    def _apply_query(self):
+        """
+        Apply the current query to _df_full and update _df_filtered.
+        """
+        if not self._query:
+            self._df_filtered = self._df_full
+        else:
+            try:
+                result_df = self._df_full.query(self._query)
+                if not result_df.empty:
+                    self._df_filtered = result_df
+                else:
+                    print(f"No data in set {self.index} after query: {self._query}. Turning Set Off...")
+                    self.select = False
+                    self._df_filtered = self._df_full
+            except Exception as e:
+                raise ValueError(f"Query error: {e}")
 
     @property
     def color(self):
@@ -415,7 +434,6 @@ class Dataset:
     #     if delta_type == 'index':
 
 
-
 def table_read(df, x_col, y_col, x_in):
     """
     Perform interpolation on a table.
@@ -436,7 +454,7 @@ def table_read(df, x_col, y_col, x_in):
 
 def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None, marker=None, 
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
-            hue_order=None, line=False, ignore_list=[], suppress_msg=False, 
+            hue_order=None, line=False, suppress_msg=False, 
             return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
             display_parms=None, grid=True):
 
@@ -455,7 +473,6 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
         hue_palette (str, optional): The palette for hue differentiation. Default is default_hue_palette.
         hue_order (list, optional): The order of hue levels. Default is None.
         line (bool, optional): If True, plot as a line plot. Default is False.
-        ignore_list (list, optional): List of titles to ignore. Default is [].
         suppress_msg (bool, optional): If True, suppress messages. Default is False.
         return_axes (bool, optional): If True, return the axes. Default is False.
         axes (matplotlib.axes.Axes, optional): Axes to plot on. Default is None.
@@ -463,6 +480,8 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
     Returns:
         matplotlib.axes.Axes: The plot axes if return_axes is True.
     """
+
+
     if axes is None:
         fig, axes = plt.subplots(1, 1, figsize=(10, 8), dpi=100)
     else:
@@ -508,6 +527,11 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
 
     notitle_count = 0
 
+    # list_of_datasets = list_of_datasets.copy()
+    # for idx, dataset in enumerate(list_of_datasets):
+    #     if not dataset.select:
+    #         list_of_datasets.pop(idx)
+
     for dataset in list_of_datasets:
         if dataset.select:
             df = dataset.df
@@ -530,9 +554,6 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
 
             title_dict = dataset.get_format_dict()
             title = title_dict.get('title', dataset.get_title())
-
-            if title in ignore_list:
-                continue
 
             hue = title_dict.get('hue', hue)
             palette = title_dict.get('hue_palette', hue_palette)
@@ -675,7 +696,7 @@ def marker_map(value):
     markers = ['o', 's', 'D',  'v', '^', '<', '>', 'd', 'H', 'p', '*']
     return markers[value % len(markers)]
 
-# Example usage
+
 if __name__ == "__main__":
     df1 = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6], "TITLE": ["DF1"]*3})
     df2 = pd.DataFrame({"A": [7, 8, 9], "B": [10, 11, 12], "TITLE": ["DF2"]*3})
