@@ -80,6 +80,7 @@ class Dataset:
         reg_order (int): The order of the regression fit.
         style (str): The style of the plot.
         set_type (str): The type of the dataset (normal, delta, etc.)
+        order (col): Column used to order 
         delta_sets (tuple): If it's a delta set, the tuple of the two datasets with the first being the base.
     
     Methods:
@@ -534,7 +535,15 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
 
     for dataset in list_of_datasets:
         if dataset.select:
-            df = dataset.df
+            if dataset.order:
+                try:
+                    df = dataset.df.sort_values(by=dataset.order)
+                except Exception as e:
+                    print(e)
+                    print(f"Error with order column {dataset.order}")
+            else:
+                df = dataset.df
+                
             if "TITLE" not in df.columns:
                 df["TITLE"] = f"Default Title"
                 notitle_count += 1
