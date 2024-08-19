@@ -80,7 +80,7 @@ class Dataset:
         reg_order (int): The order of the regression fit.
         style (str): The style of the plot.
         set_type (str): The type of the dataset (normal, delta, etc.)
-        order (col): Column used to order 
+        order (col): Column used to order/sort 
         delta_sets (tuple): If it's a delta set, the tuple of the two datasets with the first being the base.
     
     Methods:
@@ -484,7 +484,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
             hue_order=None, line=False, suppress_msg=False, 
             return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
-            display_parms=None, grid=True):
+            display_parms=None, grid=True, legend='above', legend_ncols=1):
 
     """
     Create a unified plot for a list of datasets.
@@ -631,15 +631,15 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                                         hue=hue, legend=False, size=markersize, palette=palette, zorder=index+1)
                     else:
                         if isinstance(reg_order, (int, float)) and reg_order > 0:
-                            scatter_kws = {'s': markersize**2, 'edgecolor': marker_edge_color,  'alpha': alpha}
+                            scatter_kws = {'s': markersize, 'edgecolor': marker_edge_color,  'alpha': alpha}
                             line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
                             sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
                                         color=color, marker=marker, label=f"{index}: {title} Fit LS {reg_order}", 
-                                        order=reg_order, data=df.sort_values(by=sort_order), zorder=index+1) 
+                                        order=reg_order, data=df.sort_values(by=sort_order)) 
                         else:
                             sns.lineplot(data=df.sort_values(by=sort_order), x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
-                                        marker=marker, alpha=alpha, style=style, label=f"{index}: {title} Fit ST", zorder=index+1,
-                                        sort=sort)
+                                        marker=marker, alpha=alpha, style=style, label=f"{index}: {title}", zorder=index+1, 
+                                        sort=sort, markeredgecolor=edge_color)
 
                 lines = axes.get_lines()
                 for line in lines:
@@ -665,6 +665,16 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
         axes.set_xlabel(x, fontsize='x-large')
         axes.set_ylabel(y, fontsize='x-large')
         
+        if legend=='above':
+            axes.legend(bbox_to_anchor=(0., 1.02, 1., .102), 
+                        loc='upper left', 
+                        ncols=legend_ncols)
+        elif legend=='default':
+            # axes.legend(ncols=legend_ncols)
+            pass
+        else:
+            print(f"legend input {legend}")
+
         if interactive:
 
             cursor = mplcursors.cursor(axes)

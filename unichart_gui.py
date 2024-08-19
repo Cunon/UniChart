@@ -199,6 +199,7 @@ class UniChart:
             'ucmdfile':self.ucmd_file,
             'delta':self.delta,
             'exec_env':self.get_exec_env,
+            'order':self.order,
 
             # Utility functions
             'print_usets':self.print_usets, 
@@ -423,6 +424,19 @@ class UniChart:
             for dataset in uset_slice:
                 dataset.marker = marker
 
+    def order(self, uset_slice=None, order=False):
+        """
+        Set the marker style for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to set marker. Default is None.
+            marker (str): The marker style to set.
+        """
+        if order is not False:
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
+                dataset.order = order
+
     def markersize(self, uset_slice=None, markersize=None):
         """
         Set the marker style for datasets.
@@ -456,13 +470,14 @@ class UniChart:
     def plot(self, x=None, y=None, z=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
              marker=None, markersize=12, marker_edge_color=None,
              hue_palette=default_hue_palette, hue_order=None, line=False, 
-             ignore_list=[], suppress_msg=False, display_parms=None):
+             ignore_list=[], suppress_msg=False, interactive=None, display_parms=None, legend='default', legend_ncols=1):
         """
         Plot the datasets on the specified x and y axes.
 
         Args:
             x (str, optional): The x-axis column name. Default is None.
             y (str, optional): The y-axis column name. Default is None.
+            z (str, optional): The z-axis column name. Default is None.
             list_of_datasets (list, optional): List of Dataset objects to plot. Default is None.
             formatting_dict (dict, optional): Dictionary of formatting options. Default is None.
             color (str, optional): The color for the plot. Default is None.
@@ -493,7 +508,16 @@ class UniChart:
         suptitle = self.exec_env['suptitle']
         display_parms = self.exec_env['display_parms']
 
-        uniplot(uset, x, y, return_axes=False, suptitle=suptitle, grid=True, display_parms=display_parms, axes=ax, dark_mode=self.dark_mode)
+        uniplot(uset, x, y, 
+                return_axes=False, 
+                suptitle=suptitle, 
+                grid=True, 
+                display_parms=display_parms, 
+                axes=ax, 
+                dark_mode=self.dark_mode, 
+                interactive=interactive,
+                legend=legend,
+                legend_ncols=legend_ncols)
         
         self.canvas.draw()  # Update the canvas
 
@@ -895,32 +919,33 @@ class UniChart:
         menubar.add_cascade(label="Settings", menu=settings_menu)
 
     def load_file(self):
-        file_path = filedialog.askopenfilename(
+        file_paths = filedialog.askopenfilenames(
             filetypes=[("Compatible Files", ["*.csv", "*.xlsx", "*.ucmd"]), 
                     ("CSV files", "*.csv"), 
                     ("Excel files", "*.xlsx"), 
                     ("UCMD files", "*.ucmd"), 
                     ("All files", "*.*")]
         )
-        if file_path:
-            try:
-                if file_path.endswith('.csv'):
-                    df = pd.read_csv(file_path)
-                    print(f"> load_df(pd.read_csv('{file_path}'))")
-                    self.load_df(df)
-                elif file_path.endswith('.xlsx'):
-                    df = pd.read_excel(file_path)
-                    print(f"> load_df(pd.read_excel('{file_path}'))")
-                    self.load_df(df)
-                elif file_path.endswith('.ucmd'):
-                    # print(f"> ucmd_file('{file_path}')")
-                    self.ucmd_file(file_path)
-                else:
-                    messagebox.showerror("File Type Error", "Unsupported file type.")
-                    return
-                print(f"Loaded {file_path}")
-            except Exception as e:
-                messagebox.showerror("File Load Error", f"Could not load file: {e}")
+        if file_paths:
+            for file_path in file_paths:
+                if file_path:
+                    try:
+                        if file_path.endswith('.csv'):
+                            df = pd.read_csv(file_path)
+                            print(f"> load_df(pd.read_csv('{file_path}'))")
+                            self.load_df(df)
+                        elif file_path.endswith('.xlsx'):
+                            df = pd.read_excel(file_path)
+                            print(f"> load_df(pd.read_excel('{file_path}'))")
+                            self.load_df(df)
+                        elif file_path.endswith('.ucmd'):
+                            self.ucmd_file(file_path)
+                        else:
+                            messagebox.showerror("File Type Error", "Unsupported file type.")
+                            return
+                        print(f"Loaded {file_path}")
+                    except Exception as e:
+                        messagebox.showerror("File Load Error", f"Could not load file: {e}")
 
     def load_ucmd_file(self):
         file_path = filedialog.askopenfilename(
