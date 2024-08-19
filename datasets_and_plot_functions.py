@@ -611,7 +611,6 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                         scatter = sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
                                             label=f"{index}: {title} colored on {hue}", palette=palette,
                                             legend=False, edgecolor=edge_color, linewidth=2, zorder=index+1)
-                        scatter.collections[-1].set_sizes([markersize**2])
                         norm = plt.Normalize(df[hue].min(), df[hue].max())
                         sm = plt.cm.ScalarMappable(cmap=palette, norm=norm)
                         sm.set_array([])
@@ -621,14 +620,18 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                         sns.scatterplot(data=df, x=x, y=y, ax=axes, color=color, marker=marker, 
                                         alpha=alpha, style=style, label=f"{index}: {title}",
                                         edgecolor=edge_color, linewidth=2, zorder=index+1)
-                        axes.collections[-1].set_sizes([markersize**2])
-                        axes.legend(prop={'size': 12})
+                    axes.collections[-1].set_sizes([markersize**2])
+                    axes.legend(prop={'size': 12})
                 else:
                     if hue:
                         print("Unichart doesn't currently support lineplots with hue")
+                        sns.lineplot(data=df.sort_values(by=sort_order), x=x, y=y, ax=axes, color=color, linestyle=linestyle, 
+                                    marker=None, alpha=alpha, style=style, sort=sort)
                         sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
                                         marker=marker, alpha=alpha, style=style, label=f"{index}: {title} colored on {hue}",
                                         hue=hue, legend=False, size=markersize, palette=palette, zorder=index+1)
+                        axes.collections[-1].set_sizes([markersize**2])
+                        axes.legend(prop={'size': 12})
                     else:
                         if isinstance(reg_order, (int, float)) and reg_order > 0:
                             scatter_kws = {'s': markersize, 'edgecolor': marker_edge_color,  'alpha': alpha}
