@@ -123,6 +123,33 @@ class Dataset:
         self.delta_sets = None # tuple of datasets for delta set
         self._display_parms = display_parms if display_parms else []
         self._plot_type = 'scatter'
+        self._order = None  # Initialize the _order attribute
+
+    @property
+    def order(self):
+        """
+        Get the column used for ordering.
+
+        Returns:
+            str: The name of the column used for ordering.
+        """
+        return self._order
+
+    @order.setter
+    def order(self, value):
+        """
+        Set the column used for ordering.
+
+        Args:
+            value (str): The name of the column to use for ordering.
+
+        Raises:
+            ValueError: If the specified column does not exist in the DataFrame.
+        """
+        if (value in self._df_full.columns) or (value==None):
+            self._order = value
+        else:
+            raise ValueError(f"Invalid order column: {value}. Column does not exist in DataFrame.")
 
     @property
     def df(self):
@@ -535,15 +562,15 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
 
     for dataset in list_of_datasets:
         if dataset.select:
+            df = dataset.df
+
             if dataset.order:
-                try:
-                    df = dataset.df.sort_values(by=dataset.order)
-                except Exception as e:
-                    print(e)
-                    print(f"Error with order column {dataset.order}")
+                sort_order = dataset.order
+                sort=False #turn off autosort in lineplot
             else:
-                df = dataset.df
-                
+                sort_order = x
+                sort=True
+
             if "TITLE" not in df.columns:
                 df["TITLE"] = f"Default Title"
                 notitle_count += 1
@@ -582,7 +609,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                 if not linestyle:
                     if hue:
                         scatter = sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
-                                            label=f"{index} : {title} colored on {hue}", palette=palette,
+                                            label=f"{index}: {title} colored on {hue}", palette=palette,
                                             legend=False, edgecolor=edge_color, linewidth=2, zorder=index+1)
                         scatter.collections[-1].set_sizes([markersize**2])
                         norm = plt.Normalize(df[hue].min(), df[hue].max())
@@ -592,7 +619,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                         axes.legend(prop={'size': 12})    
                     else:
                         sns.scatterplot(data=df, x=x, y=y, ax=axes, color=color, marker=marker, 
-                                        alpha=alpha, style=style, label=f"{index} : {title}",
+                                        alpha=alpha, style=style, label=f"{index}: {title}",
                                         edgecolor=edge_color, linewidth=2, zorder=index+1)
                         axes.collections[-1].set_sizes([markersize**2])
                         axes.legend(prop={'size': 12})
@@ -600,18 +627,19 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                     if hue:
                         print("Unichart doesn't currently support lineplots with hue")
                         sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
-                                        marker=marker, alpha=alpha, style=style, label=f"{index} : {title} colored on {hue}",
+                                        marker=marker, alpha=alpha, style=style, label=f"{index}: {title} colored on {hue}",
                                         hue=hue, legend=False, size=markersize, palette=palette, zorder=index+1)
                     else:
                         if isinstance(reg_order, (int, float)) and reg_order > 0:
                             scatter_kws = {'s': markersize**2, 'edgecolor': marker_edge_color,  'alpha': alpha}
                             line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
                             sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
-                                        color=color, marker=marker, label=f"{index} : {title} Fit LS {reg_order}", 
-                                        order=reg_order, data=df.sort_values(by=x), zorder=index+1) 
+                                        color=color, marker=marker, label=f"{index}: {title} Fit LS {reg_order}", 
+                                        order=reg_order, data=df.sort_values(by=sort_order), zorder=index+1) 
                         else:
-                            sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
-                                        marker=marker, alpha=alpha, style=style, label=f"{index} : {title} Fit ST", zorder=index+1)
+                            sns.lineplot(data=df.sort_values(by=sort_order), x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
+                                        marker=marker, alpha=alpha, style=style, label=f"{index}: {title} Fit ST", zorder=index+1,
+                                        sort=sort)
 
                 lines = axes.get_lines()
                 for line in lines:
