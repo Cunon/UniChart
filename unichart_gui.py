@@ -120,9 +120,6 @@ class UniChart:
         self.suptitle = None
         self.display_parms = []
 
-        # Create an execution environment
-        self.initialize_exec_env()
-
         # Redirect stdout and stderr to the history box
         sys.stdout = TextRedirector(self.history, "stdout")
         sys.stderr = TextRedirector(self.history, "stderr")
@@ -137,8 +134,13 @@ class UniChart:
         self.last_x = None
         self.last_y = None
 
+        self.legend = 'default'
+
         # Initialize dark mode flag
         self.dark_mode = False
+
+        # Create an execution environment
+        self.initialize_exec_env()
 
         # Bind Control-O to load_file
         self.root.bind("<Control-o>", lambda event: self.load_file())        # Execute startup script if it exists
@@ -164,6 +166,7 @@ class UniChart:
 
             # Top level Plot formatting
             'display_parms': self.display_parms,
+            'legend': self.legend,
             'default_display_parms': [],
             'suptitle': self.suptitle,
 
@@ -470,7 +473,7 @@ class UniChart:
     def plot(self, x=None, y=None, z=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
              marker=None, markersize=12, marker_edge_color=None,
              hue_palette=default_hue_palette, hue_order=None, line=False, 
-             ignore_list=[], suppress_msg=False, interactive=None, display_parms=None, legend='default', legend_ncols=1):
+             ignore_list=[], suppress_msg=False, interactive=None, display_parms=None, legend=None, legend_ncols=1):
         """
         Plot the datasets on the specified x and y axes.
 
@@ -498,6 +501,13 @@ class UniChart:
             print("Error: x and y must be provided at least once.")
             return
 
+        acceptable_legend_values = ['default', 'on', 'off']
+        if legend is None:
+            legend = self.exec_env['legend']
+        elif ~legend in acceptable_legend_values:
+            print(f"Error: legend must be one of {acceptable_legend_values}")
+            legend = 'default'
+
         self.last_x = x
         self.last_y = y
 
@@ -507,6 +517,7 @@ class UniChart:
         uset = self.exec_env['uset']
         suptitle = self.exec_env['suptitle']
         display_parms = self.exec_env['display_parms']
+        
 
         uniplot(uset, x, y, 
                 return_axes=False, 

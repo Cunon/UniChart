@@ -672,6 +672,8 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
             axes.legend(bbox_to_anchor=(0., 1.02, 1., .102), 
                         loc='upper left', 
                         ncols=legend_ncols)
+        elif legend=='off':
+            axes.legend().set_visible(False)
         elif legend=='default':
             # axes.legend(ncols=legend_ncols)
             pass
