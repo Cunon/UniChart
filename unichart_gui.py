@@ -135,6 +135,7 @@ class UniChart:
         self.last_y = None
 
         self.legend = 'default'
+        self.legend_ncols = 1
 
         # Initialize dark mode flag
         self.dark_mode = False
@@ -167,6 +168,7 @@ class UniChart:
             # Top level Plot formatting
             'display_parms': self.display_parms,
             'legend': self.legend,
+            'legend_ncols': self.legend_ncols,
             'default_display_parms': [],
             'suptitle': self.suptitle,
 
@@ -473,7 +475,7 @@ class UniChart:
     def plot(self, x=None, y=None, z=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
              marker=None, markersize=12, marker_edge_color=None,
              hue_palette=default_hue_palette, hue_order=None, line=False, 
-             ignore_list=[], suppress_msg=False, interactive=None, display_parms=None, legend=None, legend_ncols=1):
+             ignore_list=[], suppress_msg=False, interactive=None, display_parms=None, legend=None, legend_ncols=None):
         """
         Plot the datasets on the specified x and y axes.
 
@@ -507,6 +509,14 @@ class UniChart:
         elif ~legend in acceptable_legend_values:
             print(f"Error: legend must be one of {acceptable_legend_values}")
             legend = 'default'
+
+        if legend_ncols is None:
+            legend_ncols = self.exec_env['legend_ncols']
+            if isinstance(legend_ncols, int) or (int(legend_ncols) == legend_ncols):    
+                legend_ncols = int(legend_ncols)
+            else:
+                print("Error: legend must be an integer or integer-like value.")
+                legend_ncols = 1
 
         self.last_x = x
         self.last_y = y
