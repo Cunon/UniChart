@@ -19,6 +19,10 @@ uset=[]
 
 # Rename some variables for ease of use
 all = uset
+off = 'off'
+on = 'on'
+default = 'default'
+
 
 # Define some custom functions here
 def tprint(uset=uset):
