@@ -475,7 +475,7 @@ class UniChart:
     def plot(self, x=None, y=None, z=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
              marker=None, markersize=12, marker_edge_color=None,
              hue_palette=default_hue_palette, hue_order=None, line=False, 
-             ignore_list=[], suppress_msg=False, interactive=None, display_parms=None, legend=None, legend_ncols=None):
+             ignore_list=[], suppress_msg=False, interactive=True, display_parms=None, legend=None, legend_ncols=None):
         """
         Plot the datasets on the specified x and y axes.
 

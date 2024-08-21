@@ -672,10 +672,8 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
             axes.legend(bbox_to_anchor=(0., 1.02, 1., .102), 
                         loc='upper left', 
                         ncols=legend_ncols)
-        elif legend=='off':
-            axes.legend().set_visible(False)
         elif legend=='default':
-            axes.legend(ncols=legend_ncols)
+            # axes.legend(ncols=legend_ncols)
             pass
         else:
             print(f"legend input {legend}")
@@ -688,7 +686,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
             def on_add(sel):
                 selected_title = sel.artist.get_label()
                 try:
-                    set_number = int(selected_title.split()[0])
+                    set_number = int(selected_title.split(":")[0])
                 except ValueError:
                     # Handle unexpected label formats
                     print(f"Unexpected label format: {selected_title}")
