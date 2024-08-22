@@ -9,6 +9,7 @@ import seaborn as sns
 from scipy.interpolate import interp1d
 import sys
 from DataFrameViewer import DataFrameManagerApp as DFV
+import numpy as np
 
 # Import functions
 from datasets_and_plot_functions import (
@@ -133,6 +134,7 @@ class UniChart:
         # Initialize last used x and y values
         self.last_x = None
         self.last_y = None
+        self.last_format = 'stack'
 
         self.legend = 'default'
         self.legend_ncols = 1
@@ -195,6 +197,7 @@ class UniChart:
             'linestyle':self.linestyle,  
             'hue':self.hue,  
             'plot_type':self.plot_type,  
+            # 'format':self.format,  
 
             # Data management
             'load_df':self.load_df,
@@ -473,9 +476,10 @@ class UniChart:
             print("Error: linestyle must be provided.")
 
     def plot(self, x=None, y=None, z=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
-             marker=None, markersize=12, marker_edge_color=None,
-             hue_palette=default_hue_palette, hue_order=None, line=False, 
-             ignore_list=[], suppress_msg=False, interactive=True, display_parms=None, legend=None, legend_ncols=None):
+            marker=None, markersize=12, marker_edge_color=None,
+            hue_palette=default_hue_palette, hue_order=None, line=False, 
+            ignore_list=[], suppress_msg=False, interactive=None, display_parms=None, legend=None, legend_ncols=None,
+            format=None):
         """
         Plot the datasets on the specified x and y axes.
 
@@ -493,20 +497,23 @@ class UniChart:
             hue_palette (str, optional): The palette for hue differentiation. Default is default_hue_palette.
             hue_order (list, optional): The order of hue levels. Default is None.
             line (bool, optional): If True, plot as a line plot. Default is False.
+            format (str, optional): Format for arranging subplots. Can be 'stack', 'std', or 'square'. Default is 'stack'.
         """
         if x is None:
             x = self.last_x
         if y is None:
             y = self.last_y
-
-        if x is None or y is None:
-            print("Error: x and y must be provided at least once.")
-            return
+        if format is None:
+            format = self.last_format
+        
+        self.last_x = x
+        self.last_y = y
+        self.last_format = format
 
         acceptable_legend_values = ['default', 'on', 'off']
         if legend is None:
             legend = self.exec_env['legend']
-        elif ~legend in acceptable_legend_values:
+        elif legend not in acceptable_legend_values:
             print(f"Error: legend must be one of {acceptable_legend_values}")
             legend = 'default'
 
@@ -518,29 +525,55 @@ class UniChart:
                 print("Error: legend must be an integer or integer-like value.")
                 legend_ncols = 1
 
-        self.last_x = x
-        self.last_y = y
-
-        self.figure.clf()  # Clear the current figure
-        ax = self.figure.add_subplot(111)  # Add a new subplot
 
         uset = self.exec_env['uset']
         suptitle = self.exec_env['suptitle']
         display_parms = self.exec_env['display_parms']
         
+        self.figure.clf()  # Clear the current figure
 
-        uniplot(uset, x, y, 
-                return_axes=False, 
-                suptitle=suptitle, 
-                grid=True, 
-                display_parms=display_parms, 
-                axes=ax, 
-                dark_mode=self.dark_mode, 
-                interactive=interactive,
-                legend=legend,
-                legend_ncols=legend_ncols)
+        if isinstance(y, list):
+            num_plots = len(y)
+
+            if format == 'stack':
+                axs = self.figure.subplots(num_plots, 1, squeeze=False).flatten()
+            elif format == 'std':
+                axs = self.figure.subplots(1, num_plots, squeeze=False).flatten()
+            elif format in ['sq', 'square']:
+                ncols = int(np.ceil(np.sqrt(num_plots)))
+                nrows = int(np.ceil(num_plots / ncols))
+                axs = self.figure.subplots(nrows, ncols, squeeze=False).flatten()
+            else:
+                print("Error: format must be one of 'stack', 'std', or 'square'.")
+                return
+
+            for i, y_val in enumerate(y):
+                ax = axs[i]
+                uniplot(uset, x, y_val, 
+                        return_axes=False, 
+                        suptitle=suptitle, 
+                        grid=True, 
+                        display_parms=display_parms, 
+                        axes=ax, 
+                        dark_mode=self.dark_mode, 
+                        interactive=interactive,
+                        legend=legend,
+                        legend_ncols=legend_ncols)
+        else:
+            ax = self.figure.add_subplot(111)  # Add a new subplot
+            uniplot(uset, x, y, 
+                    return_axes=False, 
+                    suptitle=suptitle, 
+                    grid=True, 
+                    display_parms=display_parms, 
+                    axes=ax, 
+                    dark_mode=self.dark_mode, 
+                    interactive=interactive,
+                    legend=legend,
+                    legend_ncols=legend_ncols)
         
         self.canvas.draw()  # Update the canvas
+
 
     def load_df(self, df, title=None, allcaps=True, load_cols_as_vars=True):
         """
