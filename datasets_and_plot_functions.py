@@ -675,6 +675,8 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
         elif legend=='default':
             # axes.legend(ncols=legend_ncols)
             pass
+        elif legend=='off':
+            axes.get_legend().remove()
         else:
             print(f"legend input {legend}")
 
