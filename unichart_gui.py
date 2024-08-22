@@ -10,6 +10,7 @@ from scipy.interpolate import interp1d
 import sys
 from DataFrameViewer import DataFrameManagerApp as DFV
 import numpy as np
+import mplcursors
 
 # Import functions
 from datasets_and_plot_functions import (
@@ -525,8 +526,9 @@ class UniChart:
                 print("Error: legend must be an integer or integer-like value.")
                 legend_ncols = 1
 
+        if list_of_datasets is None:
+            list_of_datasets = uset = self.exec_env['uset']
 
-        uset = self.exec_env['uset']
         suptitle = self.exec_env['suptitle']
         display_parms = self.exec_env['display_parms']
         
@@ -559,6 +561,66 @@ class UniChart:
                         interactive=interactive,
                         legend=legend,
                         legend_ncols=legend_ncols)
+
+                if interactive:
+                    cursor = mplcursors.cursor(ax)
+
+                    @cursor.connect("add")
+                    def on_add(sel):
+                        selected_title = sel.artist.get_label()
+                        try:
+                            set_number = int(selected_title.split(":")[0])
+                        except ValueError:
+                            # Handle unexpected label formats
+                            print(f"Unexpected label format: {selected_title}")
+                            return
+
+                        selected_dataset = list_of_datasets[set_number]
+                        selected_df = selected_dataset.df
+
+                        annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset {selected_dataset.index}: {selected_dataset.title}'
+                        effective_display_parms = display_parms if display_parms else selected_dataset.display_parms
+
+                        if effective_display_parms:
+                            header = '\n{:<25} {:<5}'.format('Parameter', 'Value')
+                            annotation_text += header
+                            annotation_text += '\n' + '-'*35
+
+                            def add_parameter(parm, value, interp=False):
+                                value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else str(value)
+                                interp_str = ' (interp)' if interp else ''
+                                
+                                formatted_line = f'{parm:<20} {value_str:>10}{interp_str}'
+                                
+                                nonlocal annotation_text
+                                annotation_text += '\n' + formatted_line
+
+                            if isinstance(sel.index, np.intc):
+                                for parm in effective_display_parms:
+                                    if parm in selected_df.columns:
+                                        value = selected_df[parm].iloc[sel.index]
+                                        add_parameter(parm, value)
+                            elif isinstance(sel.index, (int, float, np.integer, np.floating)):
+                                try:
+                                    float_index = float(sel.index)
+                                    low_index = np.floor(float_index)
+                                    high_index = np.ceil(float_index)
+                                    for parm in effective_display_parms:
+                                        if parm in selected_df.columns:
+                                            low_value = selected_df[parm].iloc[low_index]
+                                            high_value = selected_df[parm].iloc[high_index]
+                                            value = low_value + (float_index - low_index) * (high_value - low_value)
+                                            add_parameter(parm, value, interp=True)
+                                except Exception as e:
+                                    print(f"Error: {e}")
+                                    return
+                            else:
+                                print(f"Invalid index: {sel.index}, Type: {type(sel.index)}")
+                                return
+                            
+                        sel.annotation.set(text=annotation_text, color='black')
+                        sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
+
         else:
             ax = self.figure.add_subplot(111)  # Add a new subplot
             uniplot(uset, x, y, 
@@ -571,7 +633,65 @@ class UniChart:
                     interactive=interactive,
                     legend=legend,
                     legend_ncols=legend_ncols)
-        
+
+            if interactive:
+                cursor = mplcursors.cursor(ax)
+
+                @cursor.connect("add")
+                def on_add(sel):
+                    selected_title = sel.artist.get_label()
+                    try:
+                        set_number = int(selected_title.split(":")[0])
+                    except ValueError:
+                        print(f"Unexpected label format: {selected_title}")
+                        return
+
+                    selected_dataset = list_of_datasets[set_number]
+                    selected_df = selected_dataset.df
+
+                    annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset {selected_dataset.index}: {selected_dataset.title}'
+                    effective_display_parms = display_parms if display_parms else selected_dataset.display_parms
+
+                    if effective_display_parms:
+                        header = '\n{:<25} {:<5}'.format('Parameter', 'Value')
+                        annotation_text += header
+                        annotation_text += '\n' + '-'*35
+
+                        def add_parameter(parm, value, interp=False):
+                            value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else str(value)
+                            interp_str = ' (interp)' if interp else ''
+                            
+                            formatted_line = f'{parm:<20} {value_str:>10}{interp_str}'
+                            
+                            nonlocal annotation_text
+                            annotation_text += '\n' + formatted_line
+
+                        if isinstance(sel.index, np.intc):
+                            for parm in effective_display_parms:
+                                if parm in selected_df.columns:
+                                    value = selected_df[parm].iloc[sel.index]
+                                    add_parameter(parm, value)
+                        elif isinstance(sel.index, (int, float, np.integer, np.floating)):
+                            try:
+                                float_index = float(sel.index)
+                                low_index = np.floor(float_index)
+                                high_index = np.ceil(float_index)
+                                for parm in effective_display_parms:
+                                    if parm in selected_df.columns:
+                                        low_value = selected_df[parm].iloc[low_index]
+                                        high_value = selected_df[parm].iloc[high_index]
+                                        value = low_value + (float_index - low_index) * (high_value - low_value)
+                                        add_parameter(parm, value, interp=True)
+                            except Exception as e:
+                                print(f"Error: {e}")
+                                return
+                        else:
+                            print(f"Invalid index: {sel.index}, Type: {type(sel.index)}")
+                            return
+                        
+                    sel.annotation.set(text=annotation_text, color='black')
+                    sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
+
         self.canvas.draw()  # Update the canvas
 
 
