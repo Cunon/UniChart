@@ -8,6 +8,7 @@ import mplcursors
 from math import floor, ceil
 import numpy as np
 import warnings
+from matplotlib.tri import Triangulation
 
 #Bandaide for mplcursors warning we don't need
 warnings.filterwarnings("ignore", message="Pick support for PolyCollection is missing.")
@@ -40,7 +41,7 @@ def validate_marker(value):
     Returns:
         bool: True if the value is a valid marker, False otherwise.
     """
-    valid_markers = ['o', 's', 'D', 'd', 'v', '^', '<', '>', 'p', '*', 'h', 'H', 'x', 'X', '+', '|', '_']
+    valid_markers = ['o', 's', 'D', 'd', 'v', '^', '<', '>', 'p', '*', 'h', 'H', 'x', 'X', '+', '|', '_', ".", None]
     return value in valid_markers
 
 def validate_linestyle(value):
@@ -79,6 +80,7 @@ class Dataset:
         reg_order (int): The order of the regression fit.
         style (str): The style of the plot.
         set_type (str): The type of the dataset (normal, delta, etc.)
+        order (col): Column used to order/sort 
         delta_sets (tuple): If it's a delta set, the tuple of the two datasets with the first being the base.
     
     Methods:
@@ -100,6 +102,7 @@ class Dataset:
             title (str): The title of the dataset. Default is None.
         """
         self._df_full = df
+        self._df_filtered = df
         self.query = None
         self._select = True
         self.title = self.set_title = title if title else df["TITLE"].iloc[0] if "TITLE" in df.columns else "Untitled"
@@ -119,6 +122,34 @@ class Dataset:
         self.set_type = 1   # 1 = normal, 2 = delta, 3 = delta with fit
         self.delta_sets = None # tuple of datasets for delta set
         self._display_parms = display_parms if display_parms else []
+        self._plot_type = 'scatter'
+        self._order = None  # Initialize the _order attribute
+
+    @property
+    def order(self):
+        """
+        Get the column used for ordering.
+
+        Returns:
+            str: The name of the column used for ordering.
+        """
+        return self._order
+
+    @order.setter
+    def order(self, value):
+        """
+        Set the column used for ordering.
+
+        Args:
+            value (str): The name of the column to use for ordering.
+
+        Raises:
+            ValueError: If the specified column does not exist in the DataFrame.
+        """
+        if (value in self._df_full.columns) or (value==None):
+            self._order = value
+        else:
+            raise ValueError(f"Invalid order column: {value}. Column does not exist in DataFrame.")
 
     @property
     def df(self):
@@ -128,17 +159,7 @@ class Dataset:
         Returns:
             pd.DataFrame: The filtered DataFrame.
         """
-        if not self.query:
-            return self._df_full
-        try:
-            result_df = self._df_full.query(self.query)
-            if not result_df.empty:
-                return result_df
-            else:
-                print(f"No data in set {self.index} after query: {self.query}. Turning Set Off...")
-                self.select = False
-        except Exception as e:
-            raise ValueError(f"Query error: {e}")
+        return self._df_filtered
 
     @df.setter
     def df(self, value):
@@ -149,6 +170,34 @@ class Dataset:
             value (pd.DataFrame): The new DataFrame.
         """
         self._df_full = value
+        self._apply_query()
+
+    @property
+    def query(self):
+        return self._query
+
+    @query.setter
+    def query(self, value):
+        self._query = value
+        self._apply_query()
+
+    def _apply_query(self):
+        """
+        Apply the current query to _df_full and update _df_filtered.
+        """
+        if not self._query:
+            self._df_filtered = self._df_full
+        else:
+            try:
+                result_df = self._df_full.query(self._query)
+                if not result_df.empty:
+                    self._df_filtered = result_df
+                else:
+                    print(f"No data in set {self.index} after query: {self._query}. Turning Set Off...")
+                    self.select = False
+                    self._df_filtered = self._df_full
+            except Exception as e:
+                raise ValueError(f"Query error: {e}")
 
     @property
     def color(self):
@@ -229,6 +278,34 @@ class Dataset:
             self._edge_color = value
         else:
             raise ValueError(f"Invalid color value: {value}")
+
+    @property
+    def plot_type(self):
+        """
+        Get the plot_type style used for plotting.
+
+        Returns:
+            str: The plot_type style.
+        """
+        return self._plot_type
+
+    @plot_type.setter
+    def plot_type(self, value):
+        """
+        Set the plot_type style used for plotting.
+
+        Args:
+            value (str): The new plot_type style.
+
+        Raises:
+            ValueError: If the marker style value is invalid.
+        """
+        valid_plot_types = ['scatter', 'contour']
+        if value in valid_plot_types:
+            self._plot_type = value
+        else:
+            raise ValueError(f"Invalid plot_type value: {value}")
+
 
     @property
     def marker(self):
@@ -339,7 +416,8 @@ class Dataset:
             'reg_order': self.reg_order,
             'index': self.index,
             'style': self.style,
-            'display_parms': self.display_parms
+            'display_parms': self.display_parms,
+            'plot_type': self.plot_type
         }
 
     def set_format_option(self, key, value):
@@ -384,7 +462,6 @@ class Dataset:
     #     if delta_type == 'index':
 
 
-
 def table_read(df, x_col, y_col, x_in):
     """
     Perform interpolation on a table.
@@ -403,11 +480,11 @@ def table_read(df, x_col, y_col, x_in):
     y_interp = f(x_in)
     return y_interp
 
-def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None, 
+def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None, marker=None, 
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
-            hue_order=None, line=False, ignore_list=[], suppress_msg=False, 
+            hue_order=None, line=False, suppress_msg=False, 
             return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
-            display_parms=None):
+            display_parms=None, grid=True, legend='above', legend_ncols=1):
 
     """
     Create a unified plot for a list of datasets.
@@ -424,7 +501,6 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
         hue_palette (str, optional): The palette for hue differentiation. Default is default_hue_palette.
         hue_order (list, optional): The order of hue levels. Default is None.
         line (bool, optional): If True, plot as a line plot. Default is False.
-        ignore_list (list, optional): List of titles to ignore. Default is [].
         suppress_msg (bool, optional): If True, suppress messages. Default is False.
         return_axes (bool, optional): If True, return the axes. Default is False.
         axes (matplotlib.axes.Axes, optional): Axes to plot on. Default is None.
@@ -432,6 +508,8 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
     Returns:
         matplotlib.axes.Axes: The plot axes if return_axes is True.
     """
+
+
     if axes is None:
         fig, axes = plt.subplots(1, 1, figsize=(10, 8), dpi=100)
     else:
@@ -451,6 +529,8 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
         axes.tick_params(axis='x', colors='white')
         axes.tick_params(axis='y', colors='white')
         legend_text_color = 'white'
+        if grid:
+            axes.grid(color='white', which='major', linestyle='-', alpha=0.1, linewidth=0.5, zorder=0)
     else:
         plt.style.use('default')
         fig.patch.set_facecolor('white')
@@ -465,6 +545,8 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
         axes.tick_params(axis='x', colors='black')
         axes.tick_params(axis='y', colors='black')
         legend_text_color = 'black'
+        if grid:
+            axes.grid(color='black', which='major', linestyle='-', alpha=0.1, linewidth=0.5, zorder=0)
 
     if suptitle:
         fig.suptitle(suptitle, fontsize='xx-large')
@@ -472,15 +554,27 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
         fig.suptitle(f"{x} vs {y}", fontsize='xx-large')
 
     notitle_count = 0
-    for dataset in list_of_datasets:
-        df = dataset.df
-        if "TITLE" not in df.columns:
-            df["TITLE"] = f"Default Title"
-            notitle_count += 1
+
+    # list_of_datasets = list_of_datasets.copy()
+    # for idx, dataset in enumerate(list_of_datasets):
+    #     if not dataset.select:
+    #         list_of_datasets.pop(idx)
 
     for dataset in list_of_datasets:
         if dataset.select:
             df = dataset.df
+
+            if dataset.order:
+                sort_order = dataset.order
+                sort=False #turn off autosort in lineplot
+            else:
+                sort_order = x
+                sort=True
+
+            if "TITLE" not in df.columns:
+                df["TITLE"] = f"Default Title"
+                notitle_count += 1
+
             if x not in df.columns:
                 if x.upper() in df.columns:
                     x = x.upper()
@@ -497,9 +591,6 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             title_dict = dataset.get_format_dict()
             title = title_dict.get('title', dataset.get_title())
 
-            if title in ignore_list:
-                continue
-
             hue = title_dict.get('hue', hue)
             palette = title_dict.get('hue_palette', hue_palette)
             color = title_dict.get('color', color)
@@ -512,50 +603,83 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             style = title_dict.get('style')
             reg_order = title_dict.get('reg_order')
             index = title_dict.get('index', 0)
+            plot_type = title_dict.get('plot_type', 0)
 
-            if not linestyle:
-                if hue:
-                    scatter = sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
-                                        label=f"{index} : {title} colored on {hue}", palette=palette,
-                                        legend=False, edgecolor=edge_color, linewidth=2)
-                    scatter.collections[-1].set_sizes([markersize**2])
-                    norm = plt.Normalize(df[hue].min(), df[hue].max())
-                    sm = plt.cm.ScalarMappable(cmap=palette, norm=norm)
-                    sm.set_array([])
-                    fig.colorbar(sm, ax=axes)
-                    axes.legend(prop={'size': 12})    
-                else:
-                    sns.scatterplot(data=df, x=x, y=y, ax=axes, color=color, marker=marker, 
-                                    alpha=alpha, style=style, label=f"{index} : {title}",
-                                    edgecolor=edge_color, linewidth=2)
+            if plot_type == 'scatter':
+                if not linestyle:
+                    if hue:
+                        scatter = sns.scatterplot(data=df, x=x, y=y, hue=hue, marker=marker, ax=axes,
+                                            label=f"{index}: {title} colored on {hue}", palette=palette,
+                                            legend=False, edgecolor=edge_color, linewidth=2, zorder=index+1)
+                        norm = plt.Normalize(df[hue].min(), df[hue].max())
+                        sm = plt.cm.ScalarMappable(cmap=palette, norm=norm)
+                        sm.set_array([])
+                        fig.colorbar(sm, ax=axes)
+                        axes.legend(prop={'size': 12})    
+                    else:
+                        sns.scatterplot(data=df, x=x, y=y, ax=axes, color=color, marker=marker, 
+                                        alpha=alpha, style=style, label=f"{index}: {title}",
+                                        edgecolor=edge_color, linewidth=2, zorder=index+1)
                     axes.collections[-1].set_sizes([markersize**2])
                     axes.legend(prop={'size': 12})
-            else:
-                if hue:
-                    print("Unichart doesn't currently support lineplots with hue")
-                    sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
-                                    marker=marker, alpha=alpha, style=style, label=f"{index} : {title} colored on {hue}",
-                                    hue=hue, legend=False, size=markersize, palette=palette)
                 else:
-                    if isinstance(reg_order, (int, float)) and reg_order > 0:
-                        scatter_kws = {'s': markersize**2, 'edgecolor': marker_edge_color,  'alpha': alpha}
-                        line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
-                        sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
-                                    color=color, marker=marker, label=f"{index} : {title} Fit LS {reg_order}", 
-                                    order=reg_order, data=df.sort_values(by=x)) 
+                    if hue:
+                        print("Unichart doesn't currently support lineplots with hue")
+                        sns.lineplot(data=df.sort_values(by=sort_order), x=x, y=y, ax=axes, color=color, linestyle=linestyle, 
+                                    marker=None, alpha=alpha, style=style, sort=sort)
+                        sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
+                                        marker=marker, alpha=alpha, style=style, label=f"{index}: {title} colored on {hue}",
+                                        hue=hue, legend=False, size=markersize, palette=palette, zorder=index+1)
+                        axes.collections[-1].set_sizes([markersize**2])
+                        axes.legend(prop={'size': 12})
                     else:
-                        sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
-                                    marker=marker, alpha=alpha, style=style, label=f"{index} : {title} Fit ST")
+                        if isinstance(reg_order, (int, float)) and reg_order > 0:
+                            scatter_kws = {'s': markersize, 'edgecolor': marker_edge_color,  'alpha': alpha}
+                            line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
+                            sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
+                                        color=color, marker=marker, label=f"{index}: {title} Fit LS {reg_order}", 
+                                        order=reg_order, data=df.sort_values(by=sort_order)) 
+                        else:
+                            sns.lineplot(data=df.sort_values(by=sort_order), x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
+                                        marker=marker, alpha=alpha, style=style, label=f"{index}: {title}", zorder=index+1, 
+                                        sort=sort, markeredgecolor=edge_color)
 
                 lines = axes.get_lines()
                 for line in lines:
                     if line.get_label() == title:
                         line.set_markersize(markersize)
                         line.set_markeredgecolor(marker_edge_color)
+            elif plot_type == 'contour':
+                    X = df[x]
+                    Y = df[y]
+                    Z = df[z] if z else df[hue]
+
+                    triang = Triangulation(X, Y)
+                    contour = axes.tricontourf(triang, Z, cmap=hue_palette, linewidths=linestyle, alpha=alpha)
+                    for i, coll in enumerate(contour.collections):
+                        coll.set_label(f"{dataset.index} : {title} _contour_{i}")
+
+                    if hue:
+                        norm = plt.Normalize(df[hue].min(), df[hue].max())
+                        sm = plt.cm.ScalarMappable(cmap=palette, norm=norm)
+                        sm.set_array([])
+                        fig.colorbar(sm, ax=axes)
 
         axes.set_xlabel(x, fontsize='x-large')
         axes.set_ylabel(y, fontsize='x-large')
         
+        if legend=='above':
+            axes.legend(bbox_to_anchor=(0., 1.02, 1., .102), 
+                        loc='upper left', 
+                        ncols=legend_ncols)
+        elif legend=='default':
+            # axes.legend(ncols=legend_ncols)
+            pass
+        elif legend=='off':
+            axes.get_legend().remove()
+        else:
+            print(f"legend input {legend}")
+
         if interactive:
 
             cursor = mplcursors.cursor(axes)
@@ -563,30 +687,40 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
             @cursor.connect("add")
             def on_add(sel):
                 selected_title = sel.artist.get_label()
-                set_number = int(selected_title.split()[0])
+                try:
+                    set_number = int(selected_title.split(":")[0])
+                except ValueError:
+                    # Handle unexpected label formats
+                    print(f"Unexpected label format: {selected_title}")
+                    return
                 selected_dataset = list_of_datasets[set_number]
                 selected_df = selected_dataset.df
 
-                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset: {selected_dataset.title}'
+                annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset {selected_dataset.index}: {selected_dataset.title}'
                 effective_display_parms = display_parms if display_parms else dataset.display_parms
 
                 if effective_display_parms:
-                    header = '\n{:<15} {:<10}'.format('Parameter', 'Value')
+                    header = '\n{:<25} {:<5}'.format('Parameter', 'Value')
                     annotation_text += header
-                    annotation_text += '\n' + '-'*26  # Add a separator line
+                    annotation_text += '\n' + '-'*35
 
                     def add_parameter(parm, value, interp=False):
-                        value_str = f'{value:.2f}' if isinstance(value, (int, float)) else f'{value}'
+                        value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else str(value)
                         interp_str = ' (interp)' if interp else ''
+                        
+                        # Adjust the format specifiers for left and right alignment
+                        # Assuming 15 characters for parameters and 10 for values, adjust as necessary
+                        formatted_line = f'{parm:<20} {value_str:>10}{interp_str}'
+                        
                         nonlocal annotation_text
-                        annotation_text += '\n{:<15} {:<10}{}'.format(parm, value_str, interp_str)
+                        annotation_text += '\n' + formatted_line
 
                     if isinstance(sel.index, np.intc):
                         for parm in effective_display_parms:
                             if parm in selected_df.columns:
                                 value = selected_df[parm].iloc[sel.index]
                                 add_parameter(parm, value)
-                    elif isinstance(sel.index, np.float64):
+                    elif isinstance(sel.index, (int, float, np.integer, np.floating)):
                         try:
                             float_index = float(sel.index)
                             low_index = floor(float_index)
@@ -601,7 +735,7 @@ def uniplot(list_of_datasets, x, y, color=None, hue=None, marker=None,
                             print(f"Error: {e}")
                             return
                     else:
-                        print("Invalid index type for display parameters")
+                        print(f"Invalid index: {sel.index}, Type: {type(sel.index)}")
                         return
                     
                 sel.annotation.set(text=annotation_text, color='black')
@@ -614,7 +748,7 @@ def marker_map(value):
     markers = ['o', 's', 'D',  'v', '^', '<', '>', 'd', 'H', 'p', '*']
     return markers[value % len(markers)]
 
-# Example usage
+
 if __name__ == "__main__":
     df1 = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6], "TITLE": ["DF1"]*3})
     df2 = pd.DataFrame({"A": [7, 8, 9], "B": [10, 11, 12], "TITLE": ["DF2"]*3})

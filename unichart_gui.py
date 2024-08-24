@@ -8,6 +8,9 @@ import pandas as pd
 import seaborn as sns
 from scipy.interpolate import interp1d
 import sys
+from DataFrameViewer import DataFrameManagerApp as DFV
+import numpy as np
+import mplcursors
 
 # Import functions
 from datasets_and_plot_functions import (
@@ -25,26 +28,6 @@ def print_columns(df):
     print("=" * 40)
     for i, col in enumerate(df.columns):
         print(f"{i:<10}{col:<30}")
-
-class ReadOnlyFunction:
-    """
-    A class to wrap a function and make it read-only.
-    """
-
-    def __init__(self, func):
-        self.func = func
-
-    def __call__(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
-
-    def __setattr__(self, name, value):
-        """
-        Prevent setting attributes on the ReadOnlyFunction instance.
-        """
-        if name == 'func':
-            super().__setattr__(name, value)
-        else:
-            raise AttributeError("Cannot modify read-only function")
 
 class ReadOnlyDict(dict):
     """
@@ -139,9 +122,6 @@ class UniChart:
         self.suptitle = None
         self.display_parms = []
 
-        # Create an execution environment
-        self.initialize_exec_env()
-
         # Redirect stdout and stderr to the history box
         sys.stdout = TextRedirector(self.history, "stdout")
         sys.stderr = TextRedirector(self.history, "stderr")
@@ -155,14 +135,24 @@ class UniChart:
         # Initialize last used x and y values
         self.last_x = None
         self.last_y = None
+        self.last_format = 'stack'
+
+        self.legend = 'default'
+        self.legend_ncols = 1
 
         # Initialize dark mode flag
         self.dark_mode = False
+
+        # Create an execution environment
+        self.initialize_exec_env()
 
         # Bind Control-O to load_file
         self.root.bind("<Control-o>", lambda event: self.load_file())        # Execute startup script if it exists
         self.execute_startup_script()
 
+    def get_exec_env(self):
+        return self.exec_env
+    
     def initialize_exec_env(self):
         """
         Initialize the execution environment for running commands.
@@ -174,9 +164,14 @@ class UniChart:
             'pd': pd,
             'sns': sns,
             'interp1d': interp1d,
+            'sys': sys,
+            'DFV': DFV,
+            'ReadOnlyDict': ReadOnlyDict,
 
             # Top level Plot formatting
             'display_parms': self.display_parms,
+            'legend': self.legend,
+            'legend_ncols': self.legend_ncols,
             'default_display_parms': [],
             'suptitle': self.suptitle,
 
@@ -188,63 +183,79 @@ class UniChart:
             'Dataset': Dataset,
 
             # Loaded Functions
-            'plot': ReadOnlyFunction(self.plot),  
+            'plot':self.plot,  
 
             # Selection and filtering
-            'omit': ReadOnlyFunction(self.omit),
-            'select': ReadOnlyFunction(self.select),
-            'restore': ReadOnlyFunction(self.restore),
-            'query': ReadOnlyFunction(self.query),
+            'omit':self.omit,
+            'select':self.select,
+            'restore':self.restore,
+            'query':self.query,
 
             # Set formatting
-            'color': ReadOnlyFunction(self.color),  
-            'marker': ReadOnlyFunction(self.marker),
-            'linestyle': ReadOnlyFunction(self.linestyle),  
-            'hue': ReadOnlyFunction(self.hue),  
+            'color':self.color,  
+            'marker':self.marker,
+            'markersize':self.markersize,
+            'linestyle':self.linestyle,  
+            'hue':self.hue,  
+            'plot_type':self.plot_type,  
+            # 'format':self.format,  
 
             # Data management
-            'load_df': ReadOnlyFunction(self.load_df),
-            'ucmd_file': ReadOnlyFunction(self.ucmd_file),
-            'ucmdfile': ReadOnlyFunction(self.ucmd_file),
-            'delta': ReadOnlyFunction(self.delta),
+            'load_df':self.load_df,
+            'fucmd':self.fast_ucmd,
+            'fast_ucmd':self.fast_ucmd,
+            'ucmd_file':self.ucmd_file,
+            'ucmdfile':self.ucmd_file,
+            'delta':self.delta,
+            'exec_env':self.get_exec_env,
+            'order':self.order,
 
             # Utility functions
-            'print_usets': ReadOnlyFunction(self.print_usets), 
-            'list_usets': ReadOnlyFunction(self.print_usets), 
-            'list_sets': ReadOnlyFunction(self.print_usets),
+            'print_usets':self.print_usets, 
+            'list_usets':self.print_usets, 
+            'list_sets':self.print_usets,
 
             'print_columns': print_columns,
-            'list_parms': ReadOnlyFunction(self.print_columns_in_dataset),
-            'list_cols': ReadOnlyFunction(self.print_columns_in_dataset),
+            'list_parms':self.print_columns_in_dataset,
+            'list_cols':self.print_columns_in_dataset,
 
             # Other functions
-            'clear': ReadOnlyFunction(self.clear),
-            'restart': ReadOnlyFunction(self.restart_program),
-            'help': ReadOnlyFunction(self.help),
-            'save_png': ReadOnlyFunction(self.save_png),
-            'save_ucmd': ReadOnlyFunction(self.save_ucmd),
-            'cd': ReadOnlyFunction(self.cd),
-            'pwd': ReadOnlyFunction(self.pwd),
-            'ls': ReadOnlyFunction(self.ls),
+            'clear':self.clear,
+            'restart':self.restart_program,
+            'help':self.help,
+            'save_png':self.save_png,
+            'save_ucmd':self.save_ucmd,
+            'cd':self.cd,
+            'pwd':self.pwd,
+            'ls':self.ls,
 
             'uset': [], #initialize empty list of datasets
-            'toggle_darkmode': ReadOnlyFunction(self.toggle_darkmode),
-            'darkmode': ReadOnlyFunction(self.darkmode)
+            'toggle_darkmode':self.toggle_darkmode,
+            'darkmode': self.darkmode
         })
 
         # Make specific keys read-only
         for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
                     'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
-                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue']:
+                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
+                    'plot_type', 'markersize']:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
         """
         Execute the startup.ucmd script if it exists in the same directory.
         """
+            
+        color_file = os.path.join(os.path.dirname(__file__), "css_colors.ucmd")
+        if os.path.isfile(color_file):
+            self.ucmd_file(color_file)
+
         startup_file = os.path.join(os.path.dirname(__file__), "startup.ucmd")
         if os.path.isfile(startup_file):
             self.ucmd_file(startup_file)
+
+        self.clear()
+
 
     def cd(self, path):
         try:
@@ -379,6 +390,21 @@ class UniChart:
         else:
             print("Error: color must be provided.")
 
+    def plot_type(self, uset_slice=None, plot_type=None):
+        """
+        Set the plot_type for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to color. Default is None.
+            plot_type (str): The plot_type to set.
+        """
+        if plot_type is not None:
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
+                dataset.plot_type = plot_type
+        else:
+            print("Error: plot_type must be provided.")
+
     def hue(self, uset_slice=None, hue=None):
         """
         Set the hue for datasets.
@@ -394,7 +420,7 @@ class UniChart:
         else:
             print("Error: hue must be provided.")
 
-    def marker(self, uset_slice=None, marker=None):
+    def marker(self, uset_slice=None, marker=False):
         """
         Set the marker style for datasets.
 
@@ -402,12 +428,38 @@ class UniChart:
             uset_slice (list or Dataset, optional): The list of datasets or a single dataset to set marker. Default is None.
             marker (str): The marker style to set.
         """
-        if marker is not None:
+        if marker is not False:
             uset_slice = self.get_uset_slice(uset_slice)
             for dataset in uset_slice:
                 dataset.marker = marker
+
+    def order(self, uset_slice=None, order=False):
+        """
+        Set the marker style for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to set marker. Default is None.
+            marker (str): The marker style to set.
+        """
+        if order is not False:
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
+                dataset.order = order
+
+    def markersize(self, uset_slice=None, markersize=None):
+        """
+        Set the marker style for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to set markersize. Default is None.
+            markersize (str): The markersize style to set.
+        """
+        if isinstance(markersize, int):
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
+                dataset.markersize = markersize
         else:
-            print("Error: marker must be provided.")
+            print("Error: markersize must be an integer.")
 
     def linestyle(self, uset_slice=None, linestyle='solid'):
         """
@@ -424,16 +476,18 @@ class UniChart:
         else:
             print("Error: linestyle must be provided.")
 
-    def plot(self, x=None, y=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
-             marker=None, markersize=12, marker_edge_color=None,
-             hue_palette=default_hue_palette, hue_order=None, line=False, 
-             ignore_list=[], suppress_msg=False, display_parms=None):
+    def plot(self, x=None, y=None, z=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
+            marker=None, markersize=12, marker_edge_color=None,
+            hue_palette=default_hue_palette, hue_order=None, line=False, 
+            suppress_msg=False, interactive=True, display_parms=None, legend=None, legend_ncols=None,
+            format=None):
         """
         Plot the datasets on the specified x and y axes.
 
         Args:
             x (str, optional): The x-axis column name. Default is None.
             y (str, optional): The y-axis column name. Default is None.
+            z (str, optional): The z-axis column name. Default is None.
             list_of_datasets (list, optional): List of Dataset objects to plot. Default is None.
             formatting_dict (dict, optional): Dictionary of formatting options. Default is None.
             color (str, optional): The color for the plot. Default is None.
@@ -444,29 +498,202 @@ class UniChart:
             hue_palette (str, optional): The palette for hue differentiation. Default is default_hue_palette.
             hue_order (list, optional): The order of hue levels. Default is None.
             line (bool, optional): If True, plot as a line plot. Default is False.
+            format (str, optional): Format for arranging subplots. Can be 'stack', 'std', or 'square'. Default is 'stack'.
         """
         if x is None:
             x = self.last_x
         if y is None:
             y = self.last_y
-
-        if x is None or y is None:
-            print("Error: x and y must be provided at least once.")
-            return
-
+        if format is None:
+            format = self.last_format
+        
         self.last_x = x
         self.last_y = y
+        self.last_format = format
 
-        self.figure.clf()  # Clear the current figure
-        ax = self.figure.add_subplot(111)  # Add a new subplot
+        acceptable_legend_values = ['default', 'on', 'off']
+        if legend is None:
+            legend = self.exec_env['legend']
+        elif legend not in acceptable_legend_values:
+            print(f"Error: legend must be one of {acceptable_legend_values}")
+            legend = 'default'
 
-        uset = self.exec_env['uset']
+        if legend_ncols is None:
+            legend_ncols = self.exec_env['legend_ncols']
+            if isinstance(legend_ncols, int) or (int(legend_ncols) == legend_ncols):    
+                legend_ncols = int(legend_ncols)
+            else:
+                print("Error: legend must be an integer or integer-like value.")
+                legend_ncols = 1
+
+        if list_of_datasets is None:
+            list_of_datasets = uset = self.exec_env['uset']
+
         suptitle = self.exec_env['suptitle']
         display_parms = self.exec_env['display_parms']
-
-        uniplot(uset, x, y, return_axes=False, suptitle=suptitle, display_parms=display_parms, axes=ax, dark_mode=self.dark_mode)
         
+        self.figure.clf()  # Clear the current figure
+
+        if isinstance(y, list):
+            num_plots = len(y)
+
+            if format == 'stack':
+                axs = self.figure.subplots(num_plots, 1, squeeze=False).flatten()
+            elif format == 'std':
+                axs = self.figure.subplots(1, num_plots, squeeze=False).flatten()
+            elif format in ['sq', 'square']:
+                ncols = int(np.ceil(np.sqrt(num_plots)))
+                nrows = int(np.ceil(num_plots / ncols))
+                axs = self.figure.subplots(nrows, ncols, squeeze=False).flatten()
+            else:
+                print("Error: format must be one of 'stack', 'std', or 'square'.")
+                return
+
+            for i, y_val in enumerate(y):
+                ax = axs[i]
+                uniplot(uset, x, y_val, 
+                        return_axes=False, 
+                        suptitle=suptitle, 
+                        grid=True, 
+                        display_parms=display_parms, 
+                        axes=ax, 
+                        dark_mode=self.dark_mode, 
+                        interactive=interactive,
+                        legend=legend,
+                        legend_ncols=legend_ncols)
+
+                if interactive:
+                    cursor = mplcursors.cursor(ax)
+
+                    @cursor.connect("add")
+                    def on_add(sel):
+                        selected_title = sel.artist.get_label()
+                        try:
+                            set_number = int(selected_title.split(":")[0])
+                        except ValueError:
+                            # Handle unexpected label formats
+                            print(f"Unexpected label format: {selected_title}")
+                            return
+
+                        selected_dataset = list_of_datasets[set_number]
+                        selected_df = selected_dataset.df
+
+                        annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset {selected_dataset.index}: {selected_dataset.title}'
+                        effective_display_parms = display_parms if display_parms else selected_dataset.display_parms
+
+                        if effective_display_parms:
+                            header = '\n{:<25} {:<5}'.format('Parameter', 'Value')
+                            annotation_text += header
+                            annotation_text += '\n' + '-'*35
+
+                            def add_parameter(parm, value, interp=False):
+                                value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else str(value)
+                                interp_str = ' (interp)' if interp else ''
+                                
+                                formatted_line = f'{parm:<20} {value_str:>10}{interp_str}'
+                                
+                                nonlocal annotation_text
+                                annotation_text += '\n' + formatted_line
+
+                            if isinstance(sel.index, np.intc):
+                                for parm in effective_display_parms:
+                                    if parm in selected_df.columns:
+                                        value = selected_df[parm].iloc[sel.index]
+                                        add_parameter(parm, value)
+                            elif isinstance(sel.index, (int, float, np.integer, np.floating)):
+                                try:
+                                    float_index = float(sel.index)
+                                    low_index = np.floor(float_index)
+                                    high_index = np.ceil(float_index)
+                                    for parm in effective_display_parms:
+                                        if parm in selected_df.columns:
+                                            low_value = selected_df[parm].iloc[low_index]
+                                            high_value = selected_df[parm].iloc[high_index]
+                                            value = low_value + (float_index - low_index) * (high_value - low_value)
+                                            add_parameter(parm, value, interp=True)
+                                except Exception as e:
+                                    print(f"Error: {e}")
+                                    return
+                            else:
+                                print(f"Invalid index: {sel.index}, Type: {type(sel.index)}")
+                                return
+                            
+                        sel.annotation.set(text=annotation_text, color='black')
+                        sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
+
+        else:
+            ax = self.figure.add_subplot(111)  # Add a new subplot
+            uniplot(uset, x, y, 
+                    return_axes=False, 
+                    suptitle=suptitle, 
+                    grid=True, 
+                    display_parms=display_parms, 
+                    axes=ax, 
+                    dark_mode=self.dark_mode, 
+                    interactive=interactive,
+                    legend=legend,
+                    legend_ncols=legend_ncols)
+
+            if interactive:
+                cursor = mplcursors.cursor(ax)
+
+                @cursor.connect("add")
+                def on_add(sel):
+                    selected_title = sel.artist.get_label()
+                    try:
+                        set_number = int(selected_title.split(":")[0])
+                    except ValueError:
+                        print(f"Unexpected label format: {selected_title}")
+                        return
+
+                    selected_dataset = list_of_datasets[set_number]
+                    selected_df = selected_dataset.df
+
+                    annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset {selected_dataset.index}: {selected_dataset.title}'
+                    effective_display_parms = display_parms if display_parms else selected_dataset.display_parms
+
+                    if effective_display_parms:
+                        header = '\n{:<25} {:<5}'.format('Parameter', 'Value')
+                        annotation_text += header
+                        annotation_text += '\n' + '-'*35
+
+                        def add_parameter(parm, value, interp=False):
+                            value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else str(value)
+                            interp_str = ' (interp)' if interp else ''
+                            
+                            formatted_line = f'{parm:<20} {value_str:>10}{interp_str}'
+                            
+                            nonlocal annotation_text
+                            annotation_text += '\n' + formatted_line
+
+                        if isinstance(sel.index, np.intc):
+                            for parm in effective_display_parms:
+                                if parm in selected_df.columns:
+                                    value = selected_df[parm].iloc[sel.index]
+                                    add_parameter(parm, value)
+                        elif isinstance(sel.index, (int, float, np.integer, np.floating)):
+                            try:
+                                float_index = float(sel.index)
+                                low_index = np.floor(float_index)
+                                high_index = np.ceil(float_index)
+                                for parm in effective_display_parms:
+                                    if parm in selected_df.columns:
+                                        low_value = selected_df[parm].iloc[low_index]
+                                        high_value = selected_df[parm].iloc[high_index]
+                                        value = low_value + (float_index - low_index) * (high_value - low_value)
+                                        add_parameter(parm, value, interp=True)
+                            except Exception as e:
+                                print(f"Error: {e}")
+                                return
+                        else:
+                            print(f"Invalid index: {sel.index}, Type: {type(sel.index)}")
+                            return
+                        
+                    sel.annotation.set(text=annotation_text, color='black')
+                    sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
+
         self.canvas.draw()  # Update the canvas
+
 
     def load_df(self, df, title=None, allcaps=True, load_cols_as_vars=True):
         """
@@ -539,36 +766,28 @@ class UniChart:
                 uset[-1].title = f"Delta set {base_set.index}-{new_set.index}"
 
     def execute_command(self, event):
-        """
-        Execute a command entered in the entry widget.
-
-        Args:
-            event (tk.Event): The event that triggered the command execution.
-        """
         command = self.entry.get("1.0", tk.END).strip()
         if command:
-            # Add command to history
             self.command_history.append(command)
             if len(self.command_history) > 1000:
                 self.command_history.pop(0)
             self.history_index = -1
 
             self.history.configure(state='normal')
-            self.history.insert(tk.END, f"> {command}\n")
+            self.history.insert(tk.END, f"> {command}\n", "stdcmd")  # Use 'stderr' for bold and red
             self.history.configure(state='disabled')
-            self.history.see(tk.END)
             self.entry.delete("1.0", 'end-1c')
 
-            # Execute the command in the plotting environment
             try:
                 exec(command, {}, self.exec_env)
                 self.canvas.draw()
             except Exception as e:
                 self.history.configure(state='normal')
-                self.history.insert(tk.END, f"Error: {e}\n")
+                self.history.insert(tk.END, f"Error: {e}\n", "stderr")
                 self.history.configure(state='disabled')
-                self.history.see(tk.END)
+            self.history.see(tk.END)
         return 'break'
+
 
     def add_newline(self, event):
         """
@@ -583,9 +802,41 @@ class UniChart:
         self.entry.insert(tk.INSERT, '\n')
         return 'break'
 
+
+    def fast_ucmd(self, file_path):
+        """
+        Execute commands from a UCMD file.
+
+        Args:
+            file_path (str): The path to the UCMD file.
+        """
+        try:
+            with open(file_path, 'r') as file:
+                commands = file.read()  # Read the entire file content
+
+            command_history = "\n".join([f"> {line}" for line in commands.splitlines()])
+
+            self.history.configure(state='normal')
+            self.history.insert(tk.END, f"{command_history}\n")
+            self.history.configure(state='disabled')
+            self.history.see(tk.END)
+            
+            try:
+                exec(commands, {}, self.exec_env)
+            except Exception as e:
+                self.history.configure(state='normal')
+                self.history.insert(tk.END, f"Error: {e}\n")
+                self.history.configure(state='disabled')
+                self.history.see(tk.END)
+            
+            self.canvas.draw()
+        except Exception as e:
+            messagebox.showerror("File Execution Error", f"Could not execute file: {e}")
+
+
     def ucmd_file(self, file_path):
         """
-        Execute commands from a UCMD file line by line, handling indented blocks and loops.
+        Execute commands from a UCMD file, handling indented blocks, multi-line commands, and syntax errors.
 
         Args:
             file_path (str): The path to the UCMD file.
@@ -595,70 +846,88 @@ class UniChart:
                 lines = file.readlines()
 
             command_block = []
-            inside_block = False
-            block_indent = 0
+            inside_multiline = False
+            block_indent = None
+
+            def execute_and_reset_block():
+                if command_block:
+                    self.execute_command_block(command_block)
+                    command_block.clear()
 
             for line in lines:
                 stripped_line = line.strip()
-                current_indent = len(line) - len(line.lstrip())
+                if not stripped_line:
+                    continue  # Skip empty lines
+                
+                current_indent = len(line) - len(stripped_line)
 
-                # If the line is not empty and inside a block, or the line starts a new block
-                if stripped_line and (inside_block or stripped_line.endswith(':') or current_indent > block_indent):
-                    if not inside_block:
-                        inside_block = True
-                        block_indent = current_indent
-
+                # Handle multiline structures
+                if inside_multiline:
                     command_block.append(line)
-                    
-                    # Check if the block ends
-                    if stripped_line.endswith(':'):
-                        continue
+                    # Detect the end of multiline structure
+                    if stripped_line.endswith((']', '}', ')')):
+                        inside_multiline = False
+                        execute_and_reset_block()
+                    continue
 
-                    # Reset block tracking if we are no longer inside a block
-                    if not stripped_line.endswith(':') and current_indent <= block_indent:
-                        inside_block = False
-                        block_indent = 0
-                        self.execute_command_block(command_block)
-                        command_block = []
+                # Detect the start of a multiline structure
+                if stripped_line.endswith(('[', '{', '(')):
+                    inside_multiline = True
+                    command_block.append(line)
+                    continue
+
+                if block_indent is None:
+                    block_indent = current_indent  # Start of a new block
+
+                # Append line to the current block
+                if current_indent >= block_indent:
+                    command_block.append(line)
                 else:
-                    if command_block:
-                        self.execute_command_block(command_block)
-                        command_block = []
-
-                    # Execute single line command
-                    if stripped_line:
-                        self.execute_command_block([line])
+                    # We have dedented, meaning the end of the current block
+                    execute_and_reset_block()
+                    block_indent = current_indent
+                    command_block.append(line)
 
             # Execute any remaining commands in the block
-            if command_block:
-                self.execute_command_block(command_block)
+            execute_and_reset_block()
 
         except Exception as e:
             messagebox.showerror("File Execution Error", f"Could not execute file: {e}")
 
+
     def execute_command_block(self, command_block):
         """
-        Execute a block of commands.
-
-        Args:
-            command_block (list): The list of command lines to execute.
+        Execute a multi line block of commands.
         """
         try:
             commands = "\n".join(command_block)
-            command_history = "\n".join([f"> {line.strip()}" for line in command_block])
-
             self.history.configure(state='normal')
-            self.history.insert(tk.END, f"{command_history}\n")
+            
+            # Iterate over each line in the command block to apply styling
+            for line in command_block:
+                command = line.strip()
+                if command:
+                    # Check for comments within the command
+                    comment_index = command.find('#')
+                    if comment_index != -1:
+                        # Split the command at the comment and insert each part with appropriate tags
+                        self.history.insert(tk.END, f"> {command[:comment_index]}", "stdcmd") 
+                        self.history.insert(tk.END, command[comment_index:], "comment")  
+                        self.history.insert(tk.END, "\n", "comment") 
+                    else:
+                        self.history.insert(tk.END, f"> {command}\n", "stdcmd")
             self.history.configure(state='disabled')
             self.history.see(tk.END)
             
+            # Execute the commands within the local execution environment
             exec(commands, {}, self.exec_env)
             self.canvas.draw()
         except Exception as e:
             self.history.configure(state='normal')
-            self.history.insert(tk.END, f"Error: {e}\n")
+            self.history.insert(tk.END, f"Error: {e}\n", "stderr")
             self.history.configure(state='disabled')
             self.history.see(tk.END)
+
             
     def navigate_history(self, event, direction):
         """
@@ -824,29 +1093,33 @@ class UniChart:
         menubar.add_cascade(label="Settings", menu=settings_menu)
 
     def load_file(self):
-        file_path = filedialog.askopenfilename(
+        file_paths = filedialog.askopenfilenames(
             filetypes=[("Compatible Files", ["*.csv", "*.xlsx", "*.ucmd"]), 
                     ("CSV files", "*.csv"), 
                     ("Excel files", "*.xlsx"), 
                     ("UCMD files", "*.ucmd"), 
                     ("All files", "*.*")]
         )
-        if file_path:
-            try:
-                if file_path.endswith('.csv'):
-                    df = pd.read_csv(file_path)
-                    self.load_df(df)
-                elif file_path.endswith('.xlsx'):
-                    df = pd.read_excel(file_path)
-                    self.load_df(df)
-                elif file_path.endswith('.ucmd'):
-                    self.ucmd_file(file_path)
-                else:
-                    messagebox.showerror("File Type Error", "Unsupported file type.")
-                    return
-                print(f"Loaded {file_path}")
-            except Exception as e:
-                messagebox.showerror("File Load Error", f"Could not load file: {e}")
+        if file_paths:
+            for file_path in file_paths:
+                if file_path:
+                    try:
+                        if file_path.endswith('.csv'):
+                            df = pd.read_csv(file_path)
+                            print(f"> load_df(pd.read_csv('{file_path}'))")
+                            self.load_df(df)
+                        elif file_path.endswith('.xlsx'):
+                            df = pd.read_excel(file_path)
+                            print(f"> load_df(pd.read_excel('{file_path}'))")
+                            self.load_df(df)
+                        elif file_path.endswith('.ucmd'):
+                            self.ucmd_file(file_path)
+                        else:
+                            messagebox.showerror("File Type Error", "Unsupported file type.")
+                            return
+                        print(f"Loaded {file_path}")
+                    except Exception as e:
+                        messagebox.showerror("File Load Error", f"Could not load file: {e}")
 
     def load_ucmd_file(self):
         file_path = filedialog.askopenfilename(
@@ -866,7 +1139,8 @@ class UniChart:
 
     def save_ucmd(self, filename=None):
         """
-        Save the history lines starting with '> ' to a text file without the '> ' prefix.
+        Save the history lines starting with '> ' to a text file without the '> ' prefix,
+        only including lines after the last 'restart()' command.
 
         Args:
             filename (str): The name of the file to save the history to.
@@ -874,6 +1148,7 @@ class UniChart:
         if filename is None:
             filename = "default_ucmd_file.ucmd"
 
+        i = 0
         temp_file_name = filename
         while os.path.exists(filename):
             filename = f"{temp_file_name}_{i}.ucmd"
@@ -886,8 +1161,13 @@ class UniChart:
         history_text = self.history.get("1.0", tk.END).splitlines()
         self.history.configure(state='disabled')
 
+        last_restart_index = -1
+        for index, line in enumerate(history_text):
+            if 'restart()' in line.strip():
+                last_restart_index = index
+
         with open(filename, 'w') as file:
-            for line in history_text:
+            for line in history_text[last_restart_index+1:]:
                 if line.startswith("> "):
                     file.write(line[2:] + '\n')
 
@@ -896,6 +1176,7 @@ class UniChart:
         Restart the execution environment.
         """
         self.initialize_exec_env()
+        self.execute_startup_script()
         print("Environment restarted")
 
     def exit_app(self):
@@ -961,42 +1242,33 @@ class UniChart:
         self.plot()  # Re-plot to apply the new style
 
 class TextRedirector:
-    """
-    A class to redirect stdout and stderr to a Tkinter Text widget.
-
-    Attributes:
-        widget (tk.Text): The Text widget to redirect output to.
-        tag (str): The tag to use for the redirected output.
-    """
+    # Format text in textbox widget based on context
 
     def __init__(self, widget, tag="stdout"):
-        """
-        Initialize the TextRedirector.
-
-        Args:
-            widget (tk.Text): The Text widget to redirect output to.
-            tag (str): The tag to use for the redirected output. Default is "stdout".
-        """
         self.widget = widget
         self.tag = tag
+        # Configure tags for different output styles
+        self.widget.tag_configure("stdout", foreground="black")
+        self.widget.tag_configure("stdcmd", foreground="black", font='TkDefaultFont 9 bold')
+        self.widget.tag_configure("stderr", foreground="red")
+        self.widget.tag_configure("comment", foreground="green", font="TkDefaultFont 9 italic")
 
     def write(self, str):
-        """
-        Write a string to the Text widget.
-
-        Args:
-            str (str): The string to write.
-        """
         self.widget.configure(state='normal')
-        self.widget.insert(tk.END, str, (self.tag,))
+        if self.tag == "stdout":
+            # Check each line for comments
+            for line in str.splitlines(True):
+                comment_index = line.find('#')
+                if comment_index != -1:
+                    # Split the line at the comment and insert each part with appropriate tags
+                    self.widget.insert(tk.END, line[:comment_index], "stdout")
+                    self.widget.insert(tk.END, line[comment_index:], "comment")
+                else:
+                    self.widget.insert(tk.END, line, "stdout")
+        else:
+            self.widget.insert(tk.END, str, self.tag)
         self.widget.configure(state='disabled')
         self.widget.see(tk.END)
-
-    def flush(self):
-        """
-        Flush the stream (no-op for this implementation).
-        """
-        pass
 
 if __name__ == "__main__":
     root = tk.Tk()
