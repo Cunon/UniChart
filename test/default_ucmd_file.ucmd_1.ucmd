@@ -1,0 +1,19 @@
+load_df(pd.read_csv('C:/Users/shado/projects/CunonUniChart/df1.csv'))
+load_df(pd.read_csv('C:/Users/shado/projects/CunonUniChart/df2.csv'))
+load_df(pd.read_csv('C:/Users/shado/projects/CunonUniChart/df3.csv'))
+load_df(pd.read_csv('C:/Users/shado/projects/CunonUniChart/df4.csv'))
+plot(x,[y,a,b,c],format='std')
+
+
+cd(r"C:\Users\shado\projects\CunonUniChart\test")
+save_png("test")
+
+for s in all:
+	print(s.title)
+	print(f"max y = {s.df[y].max()}"
+for s in all:
+	print(s.title)
+	print(f"max y = {s.df[y].max()}")
+	
+plot(x,[y,a,b,c], format='sq')
+save_png("test2")
