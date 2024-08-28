@@ -719,6 +719,8 @@ class UniChart:
 
         if load_cols_as_vars:
             for col in df.columns:
+                col = col.replace(":", "")
+                col = col.replace(".", "_")
                 try:
                     exec(f"{col} = '{col}'", {}, self.exec_env)
                     exec(f"{col.lower()} = '{col}'", {}, self.exec_env)
@@ -792,12 +794,6 @@ class UniChart:
     def add_newline(self, event):
         """
         Add a newline in the entry widget.
-
-        Args:
-            event (tk.Event): The event that triggered adding a newline.
-
-        Returns:
-            str: 'break' to interrupt the default behavior.
         """
         self.entry.insert(tk.INSERT, '\n')
         return 'break'
@@ -842,6 +838,7 @@ class UniChart:
             file_path (str): The path to the UCMD file.
         """
         try:
+            line_number=0
             with open(file_path, 'r') as file:
                 lines = file.readlines()
 
@@ -854,11 +851,11 @@ class UniChart:
                     self.execute_command_block(command_block)
                     command_block.clear()
 
-            for line in lines:
+            for line_number, line in enumerate(lines, start=1):
                 stripped_line = line.strip()
                 if not stripped_line:
                     continue  # Skip empty lines
-                
+
                 current_indent = len(line) - len(stripped_line)
 
                 # Handle multiline structures
@@ -892,7 +889,9 @@ class UniChart:
             execute_and_reset_block()
 
         except Exception as e:
-            messagebox.showerror("File Execution Error", f"Could not execute file: {e}")
+            error_message = f"Error executing file '{file_path}' on line {line_number}: {str(e)}"
+            messagebox.showerror("File Execution Error", error_message)
+            print(error_message, file=sys.stderr)
 
 
     def execute_command_block(self, command_block):
@@ -1041,7 +1040,10 @@ class UniChart:
                 'color': 'color(uset_slice, color) - Set the color of datasets.',
                 'marker': 'marker(uset_slice, marker) - Set the marker of datasets.',
                 'linestyle': 'linestyle(uset_slice, linestyle) - Set the linestyle of datasets.',
-                'hue': 'hue(uset_slice, hue) - Color set by input parm.',
+                'hue': 'hue(uset_slice, hue) - Set hue differentiation for datasets.',
+                'plot_type': 'plot_type(uset_slice, plot_type) - Set the plot type for datasets.',
+                'markersize': 'markersize(uset_slice, markersize) - Set the marker size for datasets.',
+                'order': 'order(uset_slice, order) - Set the order for datasets.',
             }
 
             max_len_lib = max(len(key) for key in libraries.keys())
@@ -1106,17 +1108,24 @@ class UniChart:
                     try:
                         if file_path.endswith('.csv'):
                             df = pd.read_csv(file_path)
-                            print(f"> load_df(pd.read_csv('{file_path}'))")
-                            self.load_df(df)
+                            command = f"load_df(pd.read_csv(r'{file_path}'))"
                         elif file_path.endswith('.xlsx'):
                             df = pd.read_excel(file_path)
-                            print(f"> load_df(pd.read_excel('{file_path}'))")
-                            self.load_df(df)
+                            command = f"load_df(pd.read_excel(r'{file_path}'))"
                         elif file_path.endswith('.ucmd'):
+                            command =f"ucmd_file(r'{file_path}')"
                             self.ucmd_file(file_path)
+                            df=None
                         else:
                             messagebox.showerror("File Type Error", "Unsupported file type.")
+                            command = "\n"
                             return
+                        
+                        self.command_history.append(command)
+                        print(f"> {command}")
+                        if df is not None:
+                            self.load_df(df)
+
                         print(f"Loaded {file_path}")
                     except Exception as e:
                         messagebox.showerror("File Load Error", f"Could not load file: {e}")
@@ -1139,11 +1148,10 @@ class UniChart:
 
     def save_ucmd(self, filename=None):
         """
-        Save the history lines starting with '> ' to a text file without the '> ' prefix,
-        only including lines after the last 'restart()' command.
+        Save the command history to a text file, only including commands issued after the last 'restart()' command.
 
         Args:
-            filename (str): The name of the file to save the history to.
+            filename (str): The name of the file to save the command history to.
         """
         if filename is None:
             filename = "default_ucmd_file.ucmd"
@@ -1157,19 +1165,18 @@ class UniChart:
                 print("Error: Could not save file.")
                 return
 
-        self.history.configure(state='normal')
-        history_text = self.history.get("1.0", tk.END).splitlines()
-        self.history.configure(state='disabled')
-
         last_restart_index = -1
-        for index, line in enumerate(history_text):
-            if 'restart()' in line.strip():
+        for index, command in enumerate(self.command_history):
+            if 'restart()' in command.strip():
                 last_restart_index = index
 
         with open(filename, 'w') as file:
-            for line in history_text[last_restart_index+1:]:
-                if line.startswith("> "):
-                    file.write(line[2:] + '\n')
+            for command in self.command_history[last_restart_index+1:]:
+                if "save_ucmd" not in command.strip():
+                    file.write(command + '\n')
+
+        print(f"Command history saved to {filename}")
+
 
     def restart_program(self):
         """
@@ -1193,34 +1200,36 @@ class UniChart:
 
     def print_usets(self):
         """
-        Print the datasets currently in the environment.
+        Print the datasets currently in the environment with additional details.
         """
         uset = self.exec_env['uset']
         # Define the maximum length for the title before breaking it into a new line
         max_title_length = 35
 
-        # Adjust the header to allocate more space for the title
-        print(f"{'Set':<8}{'Title':<40}{'Points':<10}{'Parms':<10}")
-        print("=" * 70)  # Increase the total length to accommodate the longer title
+        # Adjust the header to allocate more space for the title and add 'Selected' and 'Query' columns
+        print(f"{'Set':<6}{'Selected':<10}{'Title':<40}{'Points':<10}{'Parms':<10}{'Query':<30}")
+        print("=" * 106)  # Increase the total length to accommodate the new columns
 
         for i, dataset in enumerate(uset):
+            selected = 'Yes' if dataset.select else 'No'
             title = dataset.get_title()
             points = len(dataset.df)
             parms = len(dataset.df.columns)
+            query = dataset.query if dataset.query else 'None'
 
             # Split the title into multiple lines if it's too long
             if len(title) > max_title_length:
                 # Break the title into chunks of max_title_length
-                title_lines = [title[j:j+max_title_length] for j in range(0, len(title), max_title_length)]
+                title_lines = [title[j:j + max_title_length] for j in range(0, len(title), max_title_length)]
             else:
                 title_lines = [title]
 
             # Print the first line of the title with the dataset info
-            print(f"{i:<8}{title_lines[0]:<40}{points:<10}{parms:<10}")
+            print(f"{i:<6}{selected:<10}{title_lines[0]:<40}{points:<10}{parms:<10}{query:<30}")
 
             # If there are additional lines, print them on new lines with spacing to align with the title column
             for additional_line in title_lines[1:]:
-                print(f"{' ':<8}{additional_line:<40}{' ':<10}{' ':<10}")
+                print(f"{' ':<16}{additional_line:<40}{' ':<10}{' ':<10}{' ':<30}")
 
     def toggle_darkmode(self):
         """

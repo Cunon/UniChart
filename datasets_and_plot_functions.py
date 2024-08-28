@@ -57,7 +57,6 @@ def validate_linestyle(value):
     valid_linestyles = ['-', '--', '-.', ':', 'None', ' ', '', None, False]
     return value in valid_linestyles
 
-
 class Dataset:
     """
     A class to represent a dataset and manage its plotting attributes.
@@ -127,25 +126,11 @@ class Dataset:
 
     @property
     def order(self):
-        """
-        Get the column used for ordering.
-
-        Returns:
-            str: The name of the column used for ordering.
-        """
         return self._order
 
     @order.setter
     def order(self, value):
-        """
-        Set the column used for ordering.
 
-        Args:
-            value (str): The name of the column to use for ordering.
-
-        Raises:
-            ValueError: If the specified column does not exist in the DataFrame.
-        """
         if (value in self._df_full.columns) or (value==None):
             self._order = value
         else:
@@ -153,22 +138,10 @@ class Dataset:
 
     @property
     def df(self):
-        """
-        Get the filtered DataFrame based on the query.
-
-        Returns:
-            pd.DataFrame: The filtered DataFrame.
-        """
         return self._df_filtered
 
     @df.setter
     def df(self, value):
-        """
-        Set the DataFrame.
-
-        Args:
-            value (pd.DataFrame): The new DataFrame.
-        """
         self._df_full = value
         self._apply_query()
 
@@ -201,25 +174,10 @@ class Dataset:
 
     @property
     def color(self):
-        """
-        Get the color used for plotting.
-
-        Returns:
-            str: The color value.
-        """
         return self._color
 
     @color.setter
     def color(self, value):
-        """
-        Set the color used for plotting.
-
-        Args:
-            value (str): The new color value.
-
-        Raises:
-            ValueError: If the color value is invalid.
-        """
         if validate_color(value):
             self._color = value
         else:
@@ -227,25 +185,10 @@ class Dataset:
         
     @property
     def select(self):
-        """
-        Get the selection status of the dataset.
-
-        Returns:
-            bool: The selection status.
-        """
         return self._select
 
     @select.setter
     def select(self, value):
-        """
-        Set the selection status of the dataset.
-
-        Args:
-            value (bool): The new selection status.
-
-        Raises:
-            ValueError: If the selection value is invalid.
-        """
         if value in [True, 'True', 'true', 1, 't', 'T', 'on', 'On', 'ON']:
             self._select = True
         elif value in [False, 'False', 'false', 0, 'f', 'F', 'off', 'Off', 'OFF']:
@@ -256,10 +199,7 @@ class Dataset:
     @property
     def edge_color(self):
         """
-        Get the edge color of the markers.
-
-        Returns:
-            str: The edge color value.
+        Color the edge of the markers
         """
         return self._edge_color
 
@@ -267,12 +207,6 @@ class Dataset:
     def edge_color(self, value):
         """
         Set the edge color of the markers.
-
-        Args:
-            value (str): The new edge color value.
-
-        Raises:
-            ValueError: If the edge color value is invalid.
         """
         if validate_color(value):
             self._edge_color = value
@@ -293,12 +227,6 @@ class Dataset:
     def plot_type(self, value):
         """
         Set the plot_type style used for plotting.
-
-        Args:
-            value (str): The new plot_type style.
-
-        Raises:
-            ValueError: If the marker style value is invalid.
         """
         valid_plot_types = ['scatter', 'contour']
         if value in valid_plot_types:
@@ -309,25 +237,10 @@ class Dataset:
 
     @property
     def marker(self):
-        """
-        Get the marker style used for plotting.
-
-        Returns:
-            str: The marker style.
-        """
         return self._marker
 
     @marker.setter
     def marker(self, value):
-        """
-        Set the marker style used for plotting.
-
-        Args:
-            value (str): The new marker style.
-
-        Raises:
-            ValueError: If the marker style value is invalid.
-        """
         if validate_marker(value):
             self._marker = value
         else:
@@ -335,25 +248,10 @@ class Dataset:
 
     @property
     def linestyle(self):
-        """
-        Get the linestyle style used for plotting.
-
-        Returns:
-            str: The linestyle style.
-        """
         return self._linestyle
 
     @linestyle.setter
     def linestyle(self, value):
-        """
-        Set the linestyle style used for plotting.
-
-        Args:
-            value (str): The new linestyle style.
-
-        Raises:
-            ValueError: If the linestyle style value is invalid.
-        """
         if validate_linestyle(value):
             self._linestyle = value
         else:
@@ -371,24 +269,9 @@ class Dataset:
             raise ValueError(f"display_parms must be a list, got {type(value)}")
 
     def sel_query(self, query):
-        """
-        Set the query for filtering the DataFrame.
-
-        Args:
-            query (str): The query string.
-        """
         self.query = query
 
     def update_format_dict(self, format_options):
-        """
-        Update multiple formatting options.
-
-        Args:
-            format_options (dict): A dictionary of format options and their values.
-
-        Raises:
-            ValueError: If a format key is invalid.
-        """
         for key, value in format_options.items():
             if hasattr(self, key):
                 setattr(self, key, value)
@@ -396,12 +279,6 @@ class Dataset:
                 raise ValueError(f"Invalid format key: {key}")
 
     def get_format_dict(self):
-        """
-        Get the current formatting options as a dictionary.
-
-        Returns:
-            dict: The current formatting options.
-        """
         return {
             'title': self.title,
             'color': self.color,

@@ -1,0 +1,17 @@
+plot(x,[y,a,b,c], format='std')
+legend=off
+plot()
+suptitle('having fun hun')
+suptitle = ('having fun hun')
+plot()
+print(uset[0].df.columns)
+for s in all:
+	print(f"{s.title}")
+	print(f"Largest T41F value = {s.df["T41F"].max()}")
+for s in all:
+	print(f"{s.title}")
+	print(f"Smallest y value = {s.df[y].max()}")
+	print(f"Smallest y value = {s.df[y].min()}")
+pwd()
+cd(r"C:\Users\shado\projects\CunonUniChart\test")
+save_ucmd()
