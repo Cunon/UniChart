@@ -1108,12 +1108,12 @@ class UniChart:
                     try:
                         if file_path.endswith('.csv'):
                             df = pd.read_csv(file_path)
-                            command = f"load_df(pd.read_csv('{file_path}'))"
+                            command = f"load_df(pd.read_csv(r'{file_path}'))"
                         elif file_path.endswith('.xlsx'):
                             df = pd.read_excel(file_path)
-                            command = f"load_df(pd.read_excel('{file_path}'))"
+                            command = f"load_df(pd.read_excel(r'{file_path}'))"
                         elif file_path.endswith('.ucmd'):
-                            command =f"ucmd_file({file_path})"
+                            command =f"ucmd_file(r'{file_path}')"
                             self.ucmd_file(file_path)
                             df=None
                         else:
@@ -1200,34 +1200,36 @@ class UniChart:
 
     def print_usets(self):
         """
-        Print the datasets currently in the environment.
+        Print the datasets currently in the environment with additional details.
         """
         uset = self.exec_env['uset']
         # Define the maximum length for the title before breaking it into a new line
         max_title_length = 35
 
-        # Adjust the header to allocate more space for the title
-        print(f"{'Set':<8}{'Title':<40}{'Points':<10}{'Parms':<10}")
-        print("=" * 70)  # Increase the total length to accommodate the longer title
+        # Adjust the header to allocate more space for the title and add 'Selected' and 'Query' columns
+        print(f"{'Set':<6}{'Selected':<10}{'Title':<40}{'Points':<10}{'Parms':<10}{'Query':<30}")
+        print("=" * 106)  # Increase the total length to accommodate the new columns
 
         for i, dataset in enumerate(uset):
+            selected = 'Yes' if dataset.select else 'No'
             title = dataset.get_title()
             points = len(dataset.df)
             parms = len(dataset.df.columns)
+            query = dataset.query if dataset.query else 'None'
 
             # Split the title into multiple lines if it's too long
             if len(title) > max_title_length:
                 # Break the title into chunks of max_title_length
-                title_lines = [title[j:j+max_title_length] for j in range(0, len(title), max_title_length)]
+                title_lines = [title[j:j + max_title_length] for j in range(0, len(title), max_title_length)]
             else:
                 title_lines = [title]
 
             # Print the first line of the title with the dataset info
-            print(f"{i:<8}{title_lines[0]:<40}{points:<10}{parms:<10}")
+            print(f"{i:<6}{selected:<10}{title_lines[0]:<40}{points:<10}{parms:<10}{query:<30}")
 
             # If there are additional lines, print them on new lines with spacing to align with the title column
             for additional_line in title_lines[1:]:
-                print(f"{' ':<8}{additional_line:<40}{' ':<10}{' ':<10}")
+                print(f"{' ':<16}{additional_line:<40}{' ':<10}{' ':<10}{' ':<30}")
 
     def toggle_darkmode(self):
         """
