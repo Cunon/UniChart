@@ -198,7 +198,7 @@ class UniChart:
             'linestyle':self.linestyle,  
             'hue':self.hue,  
             'plot_type':self.plot_type,  
-            # 'format':self.format,  
+            'title':self.title,  
 
             # Data management
             'load_df':self.load_df,
@@ -228,6 +228,7 @@ class UniChart:
             'cd':self.cd,
             'pwd':self.pwd,
             'ls':self.ls,
+            'mkdir':self.mkdir,
 
             'uset': [], #initialize empty list of datasets
             'toggle_darkmode':self.toggle_darkmode,
@@ -238,7 +239,7 @@ class UniChart:
         for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
                     'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
                     'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
-                    'plot_type', 'markersize']:
+                    'plot_type', 'markersize', 'title', 'mkdir']:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
@@ -261,6 +262,13 @@ class UniChart:
         try:
             os.chdir(path)
             print(f"Changed directory to: {os.getcwd()}\n")
+        except Exception as e:
+            print(f"Error: {e}\n", "stderr")
+
+    def mkdir(self, path):
+        try:
+            os.mkdir(path)
+            print(f"New Directory made: {os.path.abspath(path)}\n")
         except Exception as e:
             print(f"Error: {e}\n", "stderr")
 
@@ -476,6 +484,14 @@ class UniChart:
         else:
             print("Error: linestyle must be provided.")
 
+    def title(self, uset_slice=None, title = None):
+        uset_slice = self.get_uset_slice(uset_slice)
+        if isinstance(title, str):
+            for dataset in uset_slice:
+                dataset.title = title
+        else:
+            print('Error, title must be a string')
+
     def plot(self, x=None, y=None, z=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
             marker=None, markersize=12, marker_edge_color=None,
             hue_palette=default_hue_palette, hue_order=None, line=False, 
@@ -485,7 +501,7 @@ class UniChart:
         Plot the datasets on the specified x and y axes.
 
         Args:
-            x (str, optional): The x-axis column name. Default is None.
+            x (str, optional): The x-axis column name. Defaults to last used x value.
             y (str, optional): The y-axis column name. Default is None.
             z (str, optional): The z-axis column name. Default is None.
             list_of_datasets (list, optional): List of Dataset objects to plot. Default is None.
@@ -965,15 +981,21 @@ class UniChart:
         Args:
             filename (str, optional): The filename to save the plot as. Default is None.
         """
+        x = self.last_x
+        y = self.last_y
+
+        if isinstance(y,list):
+            y = "_".join(y)
+
         if not filename:
-            filename = f'plot_{self.last_x}_{self.last_y}'
+            filename = f'plot_{x}_vs_{y}'
         elif filename.endswith('.png'):
             filename = filename[:-4]
 
         temp_file_name = filename
         i = 1
         while os.path.exists(f"{filename}.png"):
-            filename = f"d{temp_file_name}_{i}"
+            filename = f"{temp_file_name}_{i}"
             i += 1
             if i > 1000:
                 print("Error: Could not save file.")

@@ -443,9 +443,10 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
 
             if dataset.order:
                 sort_order = dataset.order
+                df = df.sort_values(by=sort_order)
                 sort=False #turn off autosort in lineplot
             else:
-                sort_order = x
+                df = df.sort_index()
                 sort=True
 
             if "TITLE" not in df.columns:
@@ -502,7 +503,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                 else:
                     if hue:
                         print("Unichart doesn't currently support lineplots with hue")
-                        sns.lineplot(data=df.sort_values(by=sort_order), x=x, y=y, ax=axes, color=color, linestyle=linestyle, 
+                        sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, 
                                     marker=None, alpha=alpha, style=style, sort=sort)
                         sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
                                         marker=marker, alpha=alpha, style=style, label=f"{index}: {title} colored on {hue}",
@@ -515,9 +516,9 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                             line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
                             sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
                                         color=color, marker=marker, label=f"{index}: {title} Fit LS {reg_order}", 
-                                        order=reg_order, data=df.sort_values(by=sort_order)) 
+                                        order=reg_order, data=df) 
                         else:
-                            sns.lineplot(data=df.sort_values(by=sort_order), x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
+                            sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
                                         marker=marker, alpha=alpha, style=style, label=f"{index}: {title}", zorder=index+1, 
                                         sort=sort, markeredgecolor=edge_color)
 
