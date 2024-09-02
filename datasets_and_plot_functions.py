@@ -361,8 +361,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
             hue_order=None, line=False, suppress_msg=False, 
             return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
-            display_parms=None, grid=True, legend='above', legend_ncols=1):
-
+            display_parms=None, grid=True, legend='above', legend_ncols=1, figsize=None):
     """
     Create a unified plot for a list of datasets.
 
@@ -381,16 +380,26 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
         suppress_msg (bool, optional): If True, suppress messages. Default is False.
         return_axes (bool, optional): If True, return the axes. Default is False.
         axes (matplotlib.axes.Axes, optional): Axes to plot on. Default is None.
+        suptitle (str, optional): The overall title for the plot. Default is None.
+        dark_mode (bool, optional): If True, enable dark mode. Default is False.
+        interactive (bool, optional): If True, enable interactive mode with mplcursors. Default is True.
+        display_parms (list, optional): List of parameters to display in the annotation. Default is None.
+        grid (bool, optional): If True, display gridlines. Default is True.
+        legend (str, optional): Position of the legend. Default is 'above'.
+        legend_ncols (int, optional): Number of columns in the legend. Default is 1.
+        figsize (tuple, optional): Size of the figure (width, height). Default is (10, 8).
 
     Returns:
         matplotlib.axes.Axes: The plot axes if return_axes is True.
     """
 
-
     if axes is None:
-        fig, axes = plt.subplots(1, 1, figsize=(10, 8), dpi=100)
+        fig, axes = plt.subplots(1, 1, figsize=figsize, dpi=100)
     else:
         fig = axes.figure
+
+    if figsize is None:
+        figsize=(10, 8)
 
     if dark_mode:
         plt.style.use('dark_background')

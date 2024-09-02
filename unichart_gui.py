@@ -48,34 +48,13 @@ class ReadOnlyDict(dict):
 
 
 class UniChart:
-    """
-    A class to represent the UniChart application for plotting datasets interactively using Tkinter.
-
-    Attributes:
-        root (tk.Tk): The root Tkinter window.
-        command_history (list): A list to store command history.
-        history_index (int): The index for navigating through command history.
-        figure (Figure): The Matplotlib figure used for plotting.
-        canvas (FigureCanvasTkAgg): The canvas for displaying the Matplotlib figure.
-        toolbar (NavigationToolbar2Tk): The navigation toolbar for the Matplotlib figure.
-        history (scrolledtext.ScrolledText): The text widget for displaying command history.
-        entry (scrolledtext.ScrolledText): The text widget for entering commands.
-        exec_env (dict): The execution environment for running commands.
-        loaded_sets (list): A list of loaded datasets.
-        last_x (str): The last used x-axis value.
-        last_y (str): The last used y-axis value.
-        dark_mode (bool): Flag to indicate if dark mode is enabled.
-        suptitle (str): The title for the plot.
-        display_parms (list): List of parameters to display.
-        default_display_parms (list): List of parameters to pass with dfs when loaded.
-    """
-
-    def __init__(self, root):
+    def __init__(self, root, figsize=(10, 8)):
         """
         Initialize the UniChart application.
 
         Args:
             root (tk.Tk): The root Tkinter window.
+            figsize (tuple, optional): Initial size of the canvas. Default is (10, 8).
         """
         self.root = root
         self.root.title("UniChart")
@@ -87,8 +66,8 @@ class UniChart:
         self.command_history = []
         self.history_index = -1
 
-        # Create a figure for plotting
-        self.figure = Figure(figsize=(10, 8), dpi=100)
+        # Create a figure for plotting with a customizable size
+        self.figure = Figure(figsize=figsize, dpi=100)
         self.canvas = FigureCanvasTkAgg(self.figure, self.root)
         self.canvas.get_tk_widget().grid(row=0, column=0, columnspan=2, sticky='nsew')
 
@@ -149,6 +128,17 @@ class UniChart:
         # Bind Control-O to load_file
         self.root.bind("<Control-o>", lambda event: self.load_file())        # Execute startup script if it exists
         self.execute_startup_script()
+
+    def set_canvas_size(self, width, height):
+        """
+        Set the size of the canvas.
+
+        Args:
+            width (float): The width of the canvas in inches.
+            height (float): The height of the canvas in inches.
+        """
+        self.figure.set_size_inches(width, height)
+        self.canvas.draw()
 
     def get_exec_env(self):
         return self.exec_env
@@ -496,7 +486,7 @@ class UniChart:
             marker=None, markersize=12, marker_edge_color=None,
             hue_palette=default_hue_palette, hue_order=None, line=False, 
             suppress_msg=False, interactive=True, display_parms=None, legend=None, legend_ncols=None,
-            format=None):
+            format=None, figsize=None):
         """
         Plot the datasets on the specified x and y axes.
 
@@ -526,6 +516,14 @@ class UniChart:
         self.last_x = x
         self.last_y = y
         self.last_format = format
+
+        if figsize is not None:
+            try:
+                self.set_canvas_size(figsize[0],figsize[1])
+            except Exception as e:
+                print(f"Error: {e}")
+        else:
+            figsize=(10, 8)
 
         acceptable_legend_values = ['default', 'on', 'off']
         if legend is None:
@@ -576,7 +574,8 @@ class UniChart:
                         dark_mode=self.dark_mode, 
                         interactive=interactive,
                         legend=legend,
-                        legend_ncols=legend_ncols)
+                        legend_ncols=legend_ncols,
+                        figsize=figsize)
 
                 if interactive:
                     cursor = mplcursors.cursor(ax)
@@ -648,7 +647,8 @@ class UniChart:
                     dark_mode=self.dark_mode, 
                     interactive=interactive,
                     legend=legend,
-                    legend_ncols=legend_ncols)
+                    legend_ncols=legend_ncols,
+                    figsize=figsize)
 
             if interactive:
                 cursor = mplcursors.cursor(ax)
@@ -1303,5 +1303,5 @@ class TextRedirector:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = UniChart(root)
+    app = UniChart(root, figsize=(8,8))
     root.mainloop()
