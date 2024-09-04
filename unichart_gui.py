@@ -188,7 +188,7 @@ class UniChart:
             'linestyle':self.linestyle,  
             'hue':self.hue,  
             'plot_type':self.plot_type,  
-            'title':self.title,  
+            'settitle':self.title,  
 
             # Data management
             'load_df':self.load_df,
@@ -229,7 +229,7 @@ class UniChart:
         for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
                     'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
                     'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
-                    'plot_type', 'markersize', 'title', 'mkdir']:
+                    'plot_type', 'markersize', 'settitle', 'mkdir']:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
