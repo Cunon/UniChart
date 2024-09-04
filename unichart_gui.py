@@ -754,34 +754,66 @@ class UniChart:
 
             next_index += 1
 
-    def delta(self, base_set, new_set=None, delta_parms=None, align_on=None, suffixes=("", "NEW"), store_all_parms=True, passed_parms=None):
-        #check types of base_set and new_set 
-        uset = self.exec_env['uset']
+    def delta(self, base_set, study_sets=None, passed_parms=None, delta_parms=None, align_on=None, suffixes=("_BASE", "")):
+        """
+        Calculate the difference between the base dataset and the study datasets.
 
-        if delta_parms == None:
-            print("Please provide parms to take deltas with")
+        Args:
+            base_set (Dataset or int): The base dataset to compare against.
+            study_sets (list[Dataset or int], optional): A list of study datasets to compare with the base dataset. Defaults to None.
+            delta_parms (list[str], optional): List of parameters to calculate deltas for. Defaults to None.
+            passed_parms (list[str], optional): List of parameters to pass from the base dataset to the result. Defaults to None.
+            suffixes (tuple, optional): Suffixes to apply to columns from the base and study datasets. Defaults to ("_BASE", "").
+            align_on (str, optional): The column to align datasets on before computing deltas. Defaults to 'index'.
+        """
+
+        if study_sets is None:
+            print("Error: Please provide at least one study set.")
             return False
-        lsuffix = suffixes[0]
-        rsuffix = suffixes[1]
-        delta_type="point"
-        if delta_type == "point": 
-            df_base = base_set.df
-            df_new = new_set.df
 
-            merged_df = pd.merge(left=df_base, right=df_new, suffixes=suffixes, how="inner", on=align_on)
+        # Get the base set and study sets using get_uset_slice
+        base_set = self.get_uset_slice(base_set)[0]
+        study_sets = self.get_uset_slice(study_sets)
 
+        if not delta_parms:
+            print("Error: Please provide delta parameters (delta_parms).")
+            delta_parms = self.last_y
+
+        if not align_on:
+            print("Error: Please provide delta parameters (delta_parms).")
+            align_on = self.last_x
+
+        lsuffix, rsuffix = suffixes
+
+        # Reduce the base dataframe to only the necessary columns
+        base_columns = [align_on] + delta_parms
+        if passed_parms:
+            base_columns += passed_parms
+
+        df_base = base_set.df[base_columns].copy()
+
+        for i, study_set in enumerate(study_sets):
+            # Reduce the study dataframe to only the necessary columns
+            study_columns = [align_on] + delta_parms
+            df_study = study_set.df[study_columns].copy()
+
+            # Merge base and study datasets on the specified alignment column
+            merged_df = pd.merge(df_base, df_study, suffixes=suffixes, how="inner", on=align_on)
+
+            # Calculate deltas and percentage deltas for the specified parameters
             for parm in delta_parms:
                 try:
-                    merged_df[f"DL{parm}"] = merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"]
-                    merged_df[f"DLPCT{parm}"] = 100 * (merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"])/merged_df[f"{parm}{lsuffix}"]
-                except:
-                    print(f"Couldn't take delta for {parm}")
+                    merged_df[f"DL_{parm}"] = merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"]
+                    merged_df[f"DLPCT_{parm}"] = 100 * (merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"]) / merged_df[f"{parm}{lsuffix}"]
+                except Exception as e:
+                    print(f"Error computing delta for {parm}: {e}")
 
-            if len(merged_df) > 0:
-                self.load_df(merged_df)
-                uset[-1].settype = 'delta'
-                uset[-1].delta_sets = (base_set.index, new_set.index)
-                uset[-1].title = f"Delta set {base_set.index}-{new_set.index}"
+            # Load the delta dataframe into the environment as a new dataset
+            self.load_df(merged_df)
+            self.exec_env['uset'][-1].settype = 'delta'
+            self.exec_env['uset'][-1].delta_sets = (base_set.index, study_set.index)
+            self.exec_env['uset'][-1].title = f"Delta set {base_set.index}-{study_set.index}"
+
 
     def execute_command(self, event):
         command = self.entry.get("1.0", tk.END).strip()
