@@ -886,7 +886,7 @@ class UniChart:
             file_path (str): The path to the UCMD file.
         """
         try:
-            line_number=0
+            line_number = 0
             with open(file_path, 'r') as file:
                 lines = file.readlines()
 
@@ -896,7 +896,11 @@ class UniChart:
 
             def execute_and_reset_block():
                 if command_block:
-                    self.execute_command_block(command_block)
+                    try:
+                        # Pass the line number to execute_command_block for better error tracking
+                        self.execute_command_block(command_block, line_number)
+                    except Exception as e:
+                        raise Exception(f"Error on line {line_number}: {e}")
                     command_block.clear()
 
             for line_number, line in enumerate(lines, start=1):
@@ -942,14 +946,18 @@ class UniChart:
             print(error_message, file=sys.stderr)
 
 
-    def execute_command_block(self, command_block):
+    def execute_command_block(self, command_block, line_number=None):
         """
-        Execute a multi line block of commands.
+        Execute a multi-line block of commands.
+
+        Args:
+            command_block (list): The block of commands to execute.
+            line_number (int, optional): The current line number for error reporting.
         """
         try:
             commands = "\n".join(command_block)
             self.history.configure(state='normal')
-            
+
             # Iterate over each line in the command block to apply styling
             for line in command_block:
                 command = line.strip()
@@ -958,20 +966,29 @@ class UniChart:
                     comment_index = command.find('#')
                     if comment_index != -1:
                         # Split the command at the comment and insert each part with appropriate tags
-                        self.history.insert(tk.END, f"> {command[:comment_index]}", "stdcmd") 
-                        self.history.insert(tk.END, command[comment_index:], "comment")  
-                        self.history.insert(tk.END, "\n", "comment") 
+                        self.history.insert(tk.END, f"> {command[:comment_index]}", "stdcmd")
+                        self.history.insert(tk.END, command[comment_index:], "comment")
+                        self.history.insert(tk.END, "\n", "comment")
                     else:
                         self.history.insert(tk.END, f"> {command}\n", "stdcmd")
             self.history.configure(state='disabled')
             self.history.see(tk.END)
-            
+
             # Execute the commands within the local execution environment
             exec(commands, {}, self.exec_env)
             self.canvas.draw()
+
+        except TypeError as e:
+            # If we encounter a 'str' object not callable error, provide more detailed information
+            error_message = f"TypeError on line {line_number}: {str(e)}\nCommand: {command}"
+            self.history.configure(state='normal')
+            self.history.insert(tk.END, f"Error: {error_message}\n", "stderr")
+            self.history.configure(state='disabled')
+            self.history.see(tk.END)
+
         except Exception as e:
             self.history.configure(state='normal')
-            self.history.insert(tk.END, f"Error: {e}\n", "stderr")
+            self.history.insert(tk.END, f"Error on line {line_number}: {str(e)}\n", "stderr")
             self.history.configure(state='disabled')
             self.history.see(tk.END)
 
