@@ -568,11 +568,7 @@ class UniChart:
         display_parms = self.exec_env['display_parms']
         
         self.figure.clf()  # Clear the current figure
-
-        # Check for axis limits set using the scale method
-        x_lim = self.axis_limits.get(x, x_lim)
-        y_lim = self.axis_limits.get(y, y_lim)
-
+        
         if isinstance(y, list):
             num_plots = len(y)
 
@@ -590,6 +586,11 @@ class UniChart:
 
             for i, y_val in enumerate(y):
                 ax = axs[i]
+
+                # Check for axis limits set using the scale method
+                x_lim = self.axis_limits.get(x, x_lim)
+                y_lim = self.axis_limits.get(y_val, y_lim)
+
                 uniplot(uset, x, y_val, 
                         return_axes=False, 
                         suptitle=suptitle, 
