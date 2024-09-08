@@ -361,7 +361,8 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
             hue_order=None, line=False, suppress_msg=False, 
             return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
-            display_parms=None, grid=True, legend='above', legend_ncols=1, figsize=None):
+            display_parms=None, grid=True, legend='above', legend_ncols=1, figsize=None,
+            x_lim=None, y_lim=None):
     """
     Create a unified plot for a list of datasets.
 
@@ -627,6 +628,10 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                     
                 sel.annotation.set(text=annotation_text, color='black')
                 sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
+        if x_lim:
+            axes.set_xlim(x_lim)
+        if y_lim:
+            axes.set_ylim(y_lim)
 
         if return_axes:
             return axes

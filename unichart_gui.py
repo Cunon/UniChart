@@ -122,6 +122,7 @@ class UniChart:
         # Initialize dark mode flag
         self.dark_mode = False
 
+        self.axis_limits = dict()
         # Create an execution environment
         self.initialize_exec_env()
 
@@ -180,6 +181,7 @@ class UniChart:
             'select':self.select,
             'restore':self.restore,
             'query':self.query,
+            'scale':self.scale,
 
             # Set formatting
             'color':self.color,  
@@ -373,6 +375,25 @@ class UniChart:
             print_columns(dataset.df)
             print("\n")
 
+
+    def scale(self, column, limits):
+        """
+        Set the axis limits for a specified column.
+
+        Args:
+            column (str): The name of the column for which to set axis limits.
+            limits (tuple): A (min, max) tuple specifying the axis limits.
+        """
+        if not limits:
+            self.axis_limits.pop(column, None)
+        elif not isinstance(limits, tuple) or len(limits) != 2:
+            print("Error: Limits should be a tuple of length 2 (min, max).")
+            return
+        else:
+            self.axis_limits[column] = limits
+            print(f"Axis limits for '{column}' set to {limits}.")
+
+
     def color(self, uset_slice=None, color=None):
         """
         Set the color for datasets.
@@ -486,7 +507,7 @@ class UniChart:
             marker=None, markersize=12, marker_edge_color=None,
             hue_palette=default_hue_palette, hue_order=None, line=False, 
             suppress_msg=False, interactive=True, display_parms=None, legend=None, legend_ncols=None,
-            format=None, figsize=None):
+            format=None, figsize=None, x_lim=None, y_lim=None):
         """
         Plot the datasets on the specified x and y axes.
 
@@ -548,6 +569,10 @@ class UniChart:
         
         self.figure.clf()  # Clear the current figure
 
+        # Check for axis limits set using the scale method
+        x_lim = self.axis_limits.get(x, x_lim)
+        y_lim = self.axis_limits.get(y, y_lim)
+
         if isinstance(y, list):
             num_plots = len(y)
 
@@ -575,7 +600,9 @@ class UniChart:
                         interactive=interactive,
                         legend=legend,
                         legend_ncols=legend_ncols,
-                        figsize=figsize)
+                        figsize=figsize,
+                        x_lim=x_lim, 
+                        y_lim=y_lim)
 
                 if interactive:
                     cursor = mplcursors.cursor(ax)
@@ -648,7 +675,9 @@ class UniChart:
                     interactive=interactive,
                     legend=legend,
                     legend_ncols=legend_ncols,
-                    figsize=figsize)
+                    figsize=figsize,
+                    x_lim=x_lim,
+                    y_lim=y_lim)
 
             if interactive:
                 cursor = mplcursors.cursor(ax)
@@ -1115,6 +1144,7 @@ class UniChart:
                 'plot_type': 'plot_type(uset_slice, plot_type) - Set the plot type for datasets.',
                 'markersize': 'markersize(uset_slice, markersize) - Set the marker size for datasets.',
                 'order': 'order(uset_slice, order) - Set the order for datasets.',
+                'scale': 'scale(col_name, (min,max)) - Control the min and max axis value for the given column'
             }
 
             max_len_lib = max(len(key) for key in libraries.keys())
