@@ -48,34 +48,13 @@ class ReadOnlyDict(dict):
 
 
 class UniChart:
-    """
-    A class to represent the UniChart application for plotting datasets interactively using Tkinter.
-
-    Attributes:
-        root (tk.Tk): The root Tkinter window.
-        command_history (list): A list to store command history.
-        history_index (int): The index for navigating through command history.
-        figure (Figure): The Matplotlib figure used for plotting.
-        canvas (FigureCanvasTkAgg): The canvas for displaying the Matplotlib figure.
-        toolbar (NavigationToolbar2Tk): The navigation toolbar for the Matplotlib figure.
-        history (scrolledtext.ScrolledText): The text widget for displaying command history.
-        entry (scrolledtext.ScrolledText): The text widget for entering commands.
-        exec_env (dict): The execution environment for running commands.
-        loaded_sets (list): A list of loaded datasets.
-        last_x (str): The last used x-axis value.
-        last_y (str): The last used y-axis value.
-        dark_mode (bool): Flag to indicate if dark mode is enabled.
-        suptitle (str): The title for the plot.
-        display_parms (list): List of parameters to display.
-        default_display_parms (list): List of parameters to pass with dfs when loaded.
-    """
-
-    def __init__(self, root):
+    def __init__(self, root, figsize=(10, 8)):
         """
         Initialize the UniChart application.
 
         Args:
             root (tk.Tk): The root Tkinter window.
+            figsize (tuple, optional): Initial size of the canvas. Default is (10, 8).
         """
         self.root = root
         self.root.title("UniChart")
@@ -87,8 +66,8 @@ class UniChart:
         self.command_history = []
         self.history_index = -1
 
-        # Create a figure for plotting
-        self.figure = Figure(figsize=(10, 8), dpi=100)
+        # Create a figure for plotting with a customizable size
+        self.figure = Figure(figsize=figsize, dpi=100)
         self.canvas = FigureCanvasTkAgg(self.figure, self.root)
         self.canvas.get_tk_widget().grid(row=0, column=0, columnspan=2, sticky='nsew')
 
@@ -143,12 +122,24 @@ class UniChart:
         # Initialize dark mode flag
         self.dark_mode = False
 
+        self.axis_limits = dict()
         # Create an execution environment
         self.initialize_exec_env()
 
         # Bind Control-O to load_file
         self.root.bind("<Control-o>", lambda event: self.load_file())        # Execute startup script if it exists
         self.execute_startup_script()
+
+    def set_canvas_size(self, width, height):
+        """
+        Set the size of the canvas.
+
+        Args:
+            width (float): The width of the canvas in inches.
+            height (float): The height of the canvas in inches.
+        """
+        self.figure.set_size_inches(width, height)
+        self.canvas.draw()
 
     def get_exec_env(self):
         return self.exec_env
@@ -190,6 +181,7 @@ class UniChart:
             'select':self.select,
             'restore':self.restore,
             'query':self.query,
+            'scale':self.scale,
 
             # Set formatting
             'color':self.color,  
@@ -198,7 +190,7 @@ class UniChart:
             'linestyle':self.linestyle,  
             'hue':self.hue,  
             'plot_type':self.plot_type,  
-            # 'format':self.format,  
+            'settitle':self.title,  
 
             # Data management
             'load_df':self.load_df,
@@ -228,6 +220,7 @@ class UniChart:
             'cd':self.cd,
             'pwd':self.pwd,
             'ls':self.ls,
+            'mkdir':self.mkdir,
 
             'uset': [], #initialize empty list of datasets
             'toggle_darkmode':self.toggle_darkmode,
@@ -238,7 +231,7 @@ class UniChart:
         for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
                     'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
                     'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
-                    'plot_type', 'markersize']:
+                    'plot_type', 'markersize', 'settitle', 'mkdir']:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
@@ -261,6 +254,13 @@ class UniChart:
         try:
             os.chdir(path)
             print(f"Changed directory to: {os.getcwd()}\n")
+        except Exception as e:
+            print(f"Error: {e}\n", "stderr")
+
+    def mkdir(self, path):
+        try:
+            os.mkdir(path)
+            print(f"New Directory made: {os.path.abspath(path)}\n")
         except Exception as e:
             print(f"Error: {e}\n", "stderr")
 
@@ -375,6 +375,25 @@ class UniChart:
             print_columns(dataset.df)
             print("\n")
 
+
+    def scale(self, column, limits):
+        """
+        Set the axis limits for a specified column.
+
+        Args:
+            column (str): The name of the column for which to set axis limits.
+            limits (tuple): A (min, max) tuple specifying the axis limits.
+        """
+        if not limits:
+            self.axis_limits.pop(column, None)
+        elif not isinstance(limits, tuple) or len(limits) != 2:
+            print("Error: Limits should be a tuple of length 2 (min, max).")
+            return
+        else:
+            self.axis_limits[column] = limits
+            print(f"Axis limits for '{column}' set to {limits}.")
+
+
     def color(self, uset_slice=None, color=None):
         """
         Set the color for datasets.
@@ -476,16 +495,24 @@ class UniChart:
         else:
             print("Error: linestyle must be provided.")
 
+    def title(self, uset_slice=None, title = None):
+        uset_slice = self.get_uset_slice(uset_slice)
+        if isinstance(title, str):
+            for dataset in uset_slice:
+                dataset.title = title
+        else:
+            print('Error, title must be a string')
+
     def plot(self, x=None, y=None, z=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
             marker=None, markersize=12, marker_edge_color=None,
             hue_palette=default_hue_palette, hue_order=None, line=False, 
             suppress_msg=False, interactive=True, display_parms=None, legend=None, legend_ncols=None,
-            format=None):
+            format=None, figsize=None, x_lim=None, y_lim=None):
         """
         Plot the datasets on the specified x and y axes.
 
         Args:
-            x (str, optional): The x-axis column name. Default is None.
+            x (str, optional): The x-axis column name. Defaults to last used x value.
             y (str, optional): The y-axis column name. Default is None.
             z (str, optional): The z-axis column name. Default is None.
             list_of_datasets (list, optional): List of Dataset objects to plot. Default is None.
@@ -511,6 +538,14 @@ class UniChart:
         self.last_y = y
         self.last_format = format
 
+        if figsize is not None:
+            try:
+                self.set_canvas_size(figsize[0],figsize[1])
+            except Exception as e:
+                print(f"Error: {e}")
+        else:
+            figsize=(10, 8)
+
         acceptable_legend_values = ['default', 'on', 'off']
         if legend is None:
             legend = self.exec_env['legend']
@@ -533,6 +568,10 @@ class UniChart:
         display_parms = self.exec_env['display_parms']
         
         self.figure.clf()  # Clear the current figure
+
+        # Check for axis limits set using the scale method
+        x_lim = self.axis_limits.get(x, x_lim)
+        y_lim = self.axis_limits.get(y, y_lim)
 
         if isinstance(y, list):
             num_plots = len(y)
@@ -560,7 +599,10 @@ class UniChart:
                         dark_mode=self.dark_mode, 
                         interactive=interactive,
                         legend=legend,
-                        legend_ncols=legend_ncols)
+                        legend_ncols=legend_ncols,
+                        figsize=figsize,
+                        x_lim=x_lim, 
+                        y_lim=y_lim)
 
                 if interactive:
                     cursor = mplcursors.cursor(ax)
@@ -632,7 +674,10 @@ class UniChart:
                     dark_mode=self.dark_mode, 
                     interactive=interactive,
                     legend=legend,
-                    legend_ncols=legend_ncols)
+                    legend_ncols=legend_ncols,
+                    figsize=figsize,
+                    x_lim=x_lim,
+                    y_lim=y_lim)
 
             if interactive:
                 cursor = mplcursors.cursor(ax)
@@ -738,34 +783,66 @@ class UniChart:
 
             next_index += 1
 
-    def delta(self, base_set, new_set=None, delta_parms=None, align_on=None, suffixes=("", "NEW"), store_all_parms=True, passed_parms=None):
-        #check types of base_set and new_set 
-        uset = self.exec_env['uset']
+    def delta(self, base_set, study_sets=None, passed_parms=None, delta_parms=None, align_on=None, suffixes=("_BASE", "")):
+        """
+        Calculate the difference between the base dataset and the study datasets.
 
-        if delta_parms == None:
-            print("Please provide parms to take deltas with")
+        Args:
+            base_set (Dataset or int): The base dataset to compare against.
+            study_sets (list[Dataset or int], optional): A list of study datasets to compare with the base dataset. Defaults to None.
+            delta_parms (list[str], optional): List of parameters to calculate deltas for. Defaults to None.
+            passed_parms (list[str], optional): List of parameters to pass from the base dataset to the result. Defaults to None.
+            suffixes (tuple, optional): Suffixes to apply to columns from the base and study datasets. Defaults to ("_BASE", "").
+            align_on (str, optional): The column to align datasets on before computing deltas. Defaults to 'index'.
+        """
+
+        if study_sets is None:
+            print("Error: Please provide at least one study set.")
             return False
-        lsuffix = suffixes[0]
-        rsuffix = suffixes[1]
-        delta_type="point"
-        if delta_type == "point": 
-            df_base = base_set.df
-            df_new = new_set.df
 
-            merged_df = pd.merge(left=df_base, right=df_new, suffixes=suffixes, how="inner", on=align_on)
+        # Get the base set and study sets using get_uset_slice
+        base_set = self.get_uset_slice(base_set)[0]
+        study_sets = self.get_uset_slice(study_sets)
 
+        if not delta_parms:
+            print("Error: Please provide delta parameters (delta_parms).")
+            delta_parms = self.last_y
+
+        if not align_on:
+            print("Error: Please provide delta parameters (delta_parms).")
+            align_on = self.last_x
+
+        lsuffix, rsuffix = suffixes
+
+        # Reduce the base dataframe to only the necessary columns
+        base_columns = [align_on] + delta_parms
+        if passed_parms:
+            base_columns += passed_parms
+
+        df_base = base_set.df[base_columns].copy()
+
+        for i, study_set in enumerate(study_sets):
+            # Reduce the study dataframe to only the necessary columns
+            study_columns = [align_on] + delta_parms
+            df_study = study_set.df[study_columns].copy()
+
+            # Merge base and study datasets on the specified alignment column
+            merged_df = pd.merge(df_base, df_study, suffixes=suffixes, how="inner", on=align_on)
+
+            # Calculate deltas and percentage deltas for the specified parameters
             for parm in delta_parms:
                 try:
-                    merged_df[f"DL{parm}"] = merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"]
-                    merged_df[f"DLPCT{parm}"] = 100 * (merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"])/merged_df[f"{parm}{lsuffix}"]
-                except:
-                    print(f"Couldn't take delta for {parm}")
+                    merged_df[f"DL_{parm}"] = merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"]
+                    merged_df[f"DLPCT_{parm}"] = 100 * (merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"]) / merged_df[f"{parm}{lsuffix}"]
+                except Exception as e:
+                    print(f"Error computing delta for {parm}: {e}")
 
-            if len(merged_df) > 0:
-                self.load_df(merged_df)
-                uset[-1].settype = 'delta'
-                uset[-1].delta_sets = (base_set.index, new_set.index)
-                uset[-1].title = f"Delta set {base_set.index}-{new_set.index}"
+            # Load the delta dataframe into the environment as a new dataset
+            self.load_df(merged_df)
+            self.exec_env['uset'][-1].settype = 'delta'
+            self.exec_env['uset'][-1].delta_sets = (base_set.index, study_set.index)
+            self.exec_env['uset'][-1].title = f"Delta set {base_set.index}-{study_set.index}"
+
 
     def execute_command(self, event):
         command = self.entry.get("1.0", tk.END).strip()
@@ -838,7 +915,7 @@ class UniChart:
             file_path (str): The path to the UCMD file.
         """
         try:
-            line_number=0
+            line_number = 0
             with open(file_path, 'r') as file:
                 lines = file.readlines()
 
@@ -848,7 +925,11 @@ class UniChart:
 
             def execute_and_reset_block():
                 if command_block:
-                    self.execute_command_block(command_block)
+                    try:
+                        # Pass the line number to execute_command_block for better error tracking
+                        self.execute_command_block(command_block, line_number)
+                    except Exception as e:
+                        raise Exception(f"Error on line {line_number}: {e}")
                     command_block.clear()
 
             for line_number, line in enumerate(lines, start=1):
@@ -894,14 +975,18 @@ class UniChart:
             print(error_message, file=sys.stderr)
 
 
-    def execute_command_block(self, command_block):
+    def execute_command_block(self, command_block, line_number=None):
         """
-        Execute a multi line block of commands.
+        Execute a multi-line block of commands.
+
+        Args:
+            command_block (list): The block of commands to execute.
+            line_number (int, optional): The current line number for error reporting.
         """
         try:
             commands = "\n".join(command_block)
             self.history.configure(state='normal')
-            
+
             # Iterate over each line in the command block to apply styling
             for line in command_block:
                 command = line.strip()
@@ -910,20 +995,29 @@ class UniChart:
                     comment_index = command.find('#')
                     if comment_index != -1:
                         # Split the command at the comment and insert each part with appropriate tags
-                        self.history.insert(tk.END, f"> {command[:comment_index]}", "stdcmd") 
-                        self.history.insert(tk.END, command[comment_index:], "comment")  
-                        self.history.insert(tk.END, "\n", "comment") 
+                        self.history.insert(tk.END, f"> {command[:comment_index]}", "stdcmd")
+                        self.history.insert(tk.END, command[comment_index:], "comment")
+                        self.history.insert(tk.END, "\n", "comment")
                     else:
                         self.history.insert(tk.END, f"> {command}\n", "stdcmd")
             self.history.configure(state='disabled')
             self.history.see(tk.END)
-            
+
             # Execute the commands within the local execution environment
             exec(commands, {}, self.exec_env)
             self.canvas.draw()
+
+        except TypeError as e:
+            # If we encounter a 'str' object not callable error, provide more detailed information
+            error_message = f"TypeError on line {line_number}: {str(e)}\nCommand: {command}"
+            self.history.configure(state='normal')
+            self.history.insert(tk.END, f"Error: {error_message}\n", "stderr")
+            self.history.configure(state='disabled')
+            self.history.see(tk.END)
+
         except Exception as e:
             self.history.configure(state='normal')
-            self.history.insert(tk.END, f"Error: {e}\n", "stderr")
+            self.history.insert(tk.END, f"Error on line {line_number}: {str(e)}\n", "stderr")
             self.history.configure(state='disabled')
             self.history.see(tk.END)
 
@@ -965,15 +1059,21 @@ class UniChart:
         Args:
             filename (str, optional): The filename to save the plot as. Default is None.
         """
+        x = self.last_x
+        y = self.last_y
+
+        if isinstance(y,list):
+            y = "_".join(y)
+
         if not filename:
-            filename = f'plot_{self.last_x}_{self.last_y}'
+            filename = f'plot_{x}_vs_{y}'
         elif filename.endswith('.png'):
             filename = filename[:-4]
 
         temp_file_name = filename
         i = 1
         while os.path.exists(f"{filename}.png"):
-            filename = f"d{temp_file_name}_{i}"
+            filename = f"{temp_file_name}_{i}"
             i += 1
             if i > 1000:
                 print("Error: Could not save file.")
@@ -1044,6 +1144,7 @@ class UniChart:
                 'plot_type': 'plot_type(uset_slice, plot_type) - Set the plot type for datasets.',
                 'markersize': 'markersize(uset_slice, markersize) - Set the marker size for datasets.',
                 'order': 'order(uset_slice, order) - Set the order for datasets.',
+                'scale': 'scale(col_name, (min,max)) - Control the min and max axis value for the given column'
             }
 
             max_len_lib = max(len(key) for key in libraries.keys())
@@ -1281,5 +1382,5 @@ class TextRedirector:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = UniChart(root)
+    app = UniChart(root, figsize=(8,8))
     root.mainloop()

@@ -361,8 +361,8 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
             hue_order=None, line=False, suppress_msg=False, 
             return_axes=False, axes=None, suptitle=None, dark_mode=False, interactive=True,
-            display_parms=None, grid=True, legend='above', legend_ncols=1):
-
+            display_parms=None, grid=True, legend='above', legend_ncols=1, figsize=None,
+            x_lim=None, y_lim=None):
     """
     Create a unified plot for a list of datasets.
 
@@ -381,16 +381,26 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
         suppress_msg (bool, optional): If True, suppress messages. Default is False.
         return_axes (bool, optional): If True, return the axes. Default is False.
         axes (matplotlib.axes.Axes, optional): Axes to plot on. Default is None.
+        suptitle (str, optional): The overall title for the plot. Default is None.
+        dark_mode (bool, optional): If True, enable dark mode. Default is False.
+        interactive (bool, optional): If True, enable interactive mode with mplcursors. Default is True.
+        display_parms (list, optional): List of parameters to display in the annotation. Default is None.
+        grid (bool, optional): If True, display gridlines. Default is True.
+        legend (str, optional): Position of the legend. Default is 'above'.
+        legend_ncols (int, optional): Number of columns in the legend. Default is 1.
+        figsize (tuple, optional): Size of the figure (width, height). Default is (10, 8).
 
     Returns:
         matplotlib.axes.Axes: The plot axes if return_axes is True.
     """
 
-
     if axes is None:
-        fig, axes = plt.subplots(1, 1, figsize=(10, 8), dpi=100)
+        fig, axes = plt.subplots(1, 1, figsize=figsize, dpi=100)
     else:
         fig = axes.figure
+
+    if figsize is None:
+        figsize=(10, 8)
 
     if dark_mode:
         plt.style.use('dark_background')
@@ -443,9 +453,10 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
 
             if dataset.order:
                 sort_order = dataset.order
+                df = df.sort_values(by=sort_order)
                 sort=False #turn off autosort in lineplot
             else:
-                sort_order = x
+                df = df.sort_index()
                 sort=True
 
             if "TITLE" not in df.columns:
@@ -502,7 +513,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                 else:
                     if hue:
                         print("Unichart doesn't currently support lineplots with hue")
-                        sns.lineplot(data=df.sort_values(by=sort_order), x=x, y=y, ax=axes, color=color, linestyle=linestyle, 
+                        sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, 
                                     marker=None, alpha=alpha, style=style, sort=sort)
                         sns.scatterplot(data=df, x=x, y=y, ax=axes, color="black", linestyle=linestyle, 
                                         marker=marker, alpha=alpha, style=style, label=f"{index}: {title} colored on {hue}",
@@ -515,9 +526,9 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                             line_kws = {'linewidth': 2, 'alpha': alpha, 'linestyle' : linestyle}
                             sns.regplot(x=x, y=y, ax=axes, scatter_kws=scatter_kws, line_kws=line_kws,
                                         color=color, marker=marker, label=f"{index}: {title} Fit LS {reg_order}", 
-                                        order=reg_order, data=df.sort_values(by=sort_order)) 
+                                        order=reg_order, data=df) 
                         else:
-                            sns.lineplot(data=df.sort_values(by=sort_order), x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
+                            sns.lineplot(data=df, x=x, y=y, ax=axes, color=color, linestyle=linestyle, markersize=markersize, 
                                         marker=marker, alpha=alpha, style=style, label=f"{index}: {title}", zorder=index+1, 
                                         sort=sort, markeredgecolor=edge_color)
 
@@ -617,6 +628,10 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
                     
                 sel.annotation.set(text=annotation_text, color='black')
                 sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
+        if x_lim:
+            axes.set_xlim(x_lim)
+        if y_lim:
+            axes.set_ylim(y_lim)
 
         if return_axes:
             return axes
