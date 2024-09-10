@@ -29,6 +29,52 @@ def print_columns(df):
     for i, col in enumerate(df.columns):
         print(f"{i:<10}{col:<30}")
 
+def str_to_var_name(s):
+    """
+    Convert a string to a valid variable name.
+
+    Args:
+        s (str): The string to convert.
+
+    Returns:
+        str: The converted variable name.
+    """
+    s=s.strip()
+    s = s.replace(" ", "_")
+    s = s.replace(":", "")
+    s = s.replace(".", "_")
+    s = s.replace(",", "_")
+    s = s.replace("(", "")
+    s = s.replace(")", "")
+    s = s.replace("+", "")
+    s = s.replace("-", "")
+    s = s.replace("/", "")
+    s = s.replace("*", "")
+    s = s.replace("%", "")
+    s = s.replace("^", "")
+    s = s.replace("=", "")
+    s = s.replace(">", "")
+    s = s.replace("<", "")
+    s = s.replace("!", "")
+    s = s.replace("?", "")
+    s = s.replace(";", "")
+    s = s.replace("'", "")
+    s = s.replace('"', "")
+    s = s.replace("#", "")
+    s = s.replace("@", "")
+    s = s.replace("&", "")
+    s = s.replace("|", "")
+    s = s.replace("\\", "")
+    s = s.replace("/", "")
+    s = s.replace("~", "")
+    s = s.replace("`", "")
+    s = s.replace("[", "")
+    s = s.replace("]", "")
+    s = s.replace("{", "")
+    s = s.replace("}", "")
+
+    return s
+
 class ReadOnlyDict(dict):
     """
     A dictionary that prevents overwriting of specific read-only keys.
@@ -231,7 +277,7 @@ class UniChart:
         for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
                     'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
                     'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
-                    'plot_type', 'markersize', 'settitle', 'mkdir']:
+                    'plot_type', 'markersize', 'settitle', 'mkdir', 'scale', 'order']:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
@@ -439,19 +485,6 @@ class UniChart:
         else:
             print("Error: hue must be provided.")
 
-    def marker(self, uset_slice=None, marker=False):
-        """
-        Set the marker style for datasets.
-
-        Args:
-            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to set marker. Default is None.
-            marker (str): The marker style to set.
-        """
-        if marker is not False:
-            uset_slice = self.get_uset_slice(uset_slice)
-            for dataset in uset_slice:
-                dataset.marker = marker
-
     def order(self, uset_slice=None, order=False):
         """
         Set the marker style for datasets.
@@ -464,6 +497,19 @@ class UniChart:
             uset_slice = self.get_uset_slice(uset_slice)
             for dataset in uset_slice:
                 dataset.order = order
+
+    def marker(self, uset_slice=None, marker=False):
+        """
+        Set the marker style for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to set marker. Default is None.
+            marker (str): The marker style to set.
+        """
+        if marker is not False:
+            uset_slice = self.get_uset_slice(uset_slice)
+            for dataset in uset_slice:
+                dataset.marker = marker
 
     def markersize(self, uset_slice=None, markersize=None):
         """
@@ -568,11 +614,7 @@ class UniChart:
         display_parms = self.exec_env['display_parms']
         
         self.figure.clf()  # Clear the current figure
-
-        # Check for axis limits set using the scale method
-        x_lim = self.axis_limits.get(x, x_lim)
-        y_lim = self.axis_limits.get(y, y_lim)
-
+        
         if isinstance(y, list):
             num_plots = len(y)
 
@@ -590,6 +632,11 @@ class UniChart:
 
             for i, y_val in enumerate(y):
                 ax = axs[i]
+
+                # Check for axis limits set using the scale method
+                x_lim = self.axis_limits.get(x, x_lim)
+                y_lim = self.axis_limits.get(y_val, y_lim)
+
                 uniplot(uset, x, y_val, 
                         return_axes=False, 
                         suptitle=suptitle, 
@@ -737,7 +784,7 @@ class UniChart:
                     sel.annotation.set(text=annotation_text, color='black')
                     sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
 
-        self.canvas.draw()  # Update the canvas
+        self.canvas.draw()  
 
 
     def load_df(self, df, title=None, allcaps=True, load_cols_as_vars=True):
@@ -764,13 +811,12 @@ class UniChart:
 
         if load_cols_as_vars:
             for col in df.columns:
-                col = col.replace(":", "")
-                col = col.replace(".", "_")
+                var_col = str_to_var_name(col)
                 try:
-                    exec(f"{col} = '{col}'", {}, self.exec_env)
-                    exec(f"{col.lower()} = '{col}'", {}, self.exec_env)
+                    exec(f"{var_col} = '{col}'", {}, self.exec_env)
+                    exec(f"{var_col.lower()} = '{col}'", {}, self.exec_env)
                 except Exception as e:
-                    print(f"{e}: {col} not loaded as variable.")
+                    print(f"{e}: {col} not loaded as variable and needs to be referenced as a string")
 
         # Loop through unique titles and create subsets of the DataFrame
         display_parms = self.exec_env['default_display_parms']
@@ -809,6 +855,8 @@ class UniChart:
             delta_parms = self.last_y
 
         if not align_on:
+            align_on = self.last_x
+        if align_on == 'index':
             print("Error: Please provide delta parameters (delta_parms).")
             align_on = self.last_x
 
@@ -819,12 +867,15 @@ class UniChart:
         if passed_parms:
             base_columns += passed_parms
 
-        df_base = base_set.df[base_columns].copy()
+        base_columns = list(dict.fromkeys(base_columns))  # Remove duplicates
+
+        df_base = base_set._df_full[base_columns].copy()
 
         for i, study_set in enumerate(study_sets):
             # Reduce the study dataframe to only the necessary columns
             study_columns = [align_on] + delta_parms
-            df_study = study_set.df[study_columns].copy()
+            study_columns = list(dict.fromkeys(study_columns))  # Remove duplicates
+            df_study = study_set._df_full[study_columns].copy()
 
             # Merge base and study datasets on the specified alignment column
             merged_df = pd.merge(df_base, df_study, suffixes=suffixes, how="inner", on=align_on)
@@ -926,11 +977,28 @@ class UniChart:
             def execute_and_reset_block():
                 if command_block:
                     try:
-                        # Pass the line number to execute_command_block for better error tracking
                         self.execute_command_block(command_block, line_number)
+                        self.history.configure(state='normal')
+                        self.history.insert(tk.END, "Command executed successfully.\n", "stdout")
+                        self.history.configure(state='disabled')
                     except Exception as e:
                         raise Exception(f"Error on line {line_number}: {e}")
                     command_block.clear()
+
+            def print_command_block(command_block):
+                # After each line, update the history and ensure real-time output
+                self.history.configure(state='normal')
+                for line in command_block:
+                    if '#' in line:
+                        self.history.insert(tk.END, f"{line.strip()}\n", "stdcmd")  # Use the 'stdcmd' tag for commands
+                    elif line.startswith(" ") or line.startswith("\t"):
+                        self.history.insert(tk.END, f"{line}\n", "stdcmd")  # Indented commands
+                    else:
+                        self.history.insert(tk.END, f"> {line.strip()}\n", "stdcmd")  # Normal commands
+
+                self.history.configure(state='disabled')
+                self.history.see(tk.END)
+                self.root.update_idletasks()  # Ensure real-time output
 
             for line_number, line in enumerate(lines, start=1):
                 stripped_line = line.strip()
@@ -942,9 +1010,9 @@ class UniChart:
                 # Handle multiline structures
                 if inside_multiline:
                     command_block.append(line)
-                    # Detect the end of multiline structure
                     if stripped_line.endswith((']', '}', ')')):
                         inside_multiline = False
+                        print_command_block(command_block)
                         execute_and_reset_block()
                     continue
 
@@ -962,6 +1030,7 @@ class UniChart:
                     command_block.append(line)
                 else:
                     # We have dedented, meaning the end of the current block
+                    print_command_block(command_block)
                     execute_and_reset_block()
                     block_indent = current_indent
                     command_block.append(line)
@@ -971,9 +1040,11 @@ class UniChart:
 
         except Exception as e:
             error_message = f"Error executing file '{file_path}' on line {line_number}: {str(e)}"
+            self.history.configure(state='normal')
+            self.history.insert(tk.END, f"{error_message}\n", "stderr")
+            self.history.configure(state='disabled')
             messagebox.showerror("File Execution Error", error_message)
             print(error_message, file=sys.stderr)
-
 
     def execute_command_block(self, command_block, line_number=None):
         """
@@ -985,23 +1056,7 @@ class UniChart:
         """
         try:
             commands = "\n".join(command_block)
-            self.history.configure(state='normal')
 
-            # Iterate over each line in the command block to apply styling
-            for line in command_block:
-                command = line.strip()
-                if command:
-                    # Check for comments within the command
-                    comment_index = command.find('#')
-                    if comment_index != -1:
-                        # Split the command at the comment and insert each part with appropriate tags
-                        self.history.insert(tk.END, f"> {command[:comment_index]}", "stdcmd")
-                        self.history.insert(tk.END, command[comment_index:], "comment")
-                        self.history.insert(tk.END, "\n", "comment")
-                    else:
-                        self.history.insert(tk.END, f"> {command}\n", "stdcmd")
-            self.history.configure(state='disabled')
-            self.history.see(tk.END)
 
             # Execute the commands within the local execution environment
             exec(commands, {}, self.exec_env)
@@ -1030,6 +1085,8 @@ class UniChart:
             event (tk.Event): The event that triggered history navigation.
             direction (str): The direction to navigate ('up' or 'down').
         """
+        #! Error: Cursor not moving to the end when navigating up
+
         if self.command_history:
             if direction == 'up':
                 if self.history_index == -1:
@@ -1048,7 +1105,6 @@ class UniChart:
             self.entry.delete("1.0", "end-1c")
             self.entry.insert(tk.END, self.command_history[self.history_index])
             
-            # Error, cursor not moving to the end
             self.entry.mark_set(tk.INSERT, tk.END)  # Move cursor to the end
             self.entry.mark_set(tk.INSERT, "end-1c")  # Move cursor to the end
 
