@@ -10,10 +10,11 @@ import numpy as np
 import warnings
 from matplotlib.tri import Triangulation
 
-#Bandaide for mplcursors warning we don't need
+# Bandaide for mplcursors warning we don't need
 warnings.filterwarnings("ignore", message="Pick support for PolyCollection is missing.")
 
 default_hue_palette = sns.color_palette("viridis", as_cmap=True)
+
 
 def validate_color(value):
     """
@@ -31,6 +32,7 @@ def validate_color(value):
     except ValueError:
         return False
 
+
 def validate_marker(value):
     """
     Validate if the provided value is a valid marker.
@@ -44,6 +46,7 @@ def validate_marker(value):
     valid_markers = ['o', 's', 'D', 'd', 'v', '^', '<', '>', 'p', '*', 'h', 'H', 'x', 'X', '+', '|', '_', ".", None]
     return value in valid_markers
 
+
 def validate_linestyle(value):
     """
     Validate if the provided value is a valid linestyle.
@@ -56,6 +59,7 @@ def validate_linestyle(value):
     """
     valid_linestyles = ['-', '--', '-.', ':', 'None', ' ', '', None, False]
     return value in valid_linestyles
+
 
 class Dataset:
     """
@@ -119,7 +123,7 @@ class Dataset:
         self.reg_order = self.fit = None
         self.style = None
         self.set_type = 1   # 1 = normal, 2 = delta, 3 = delta with fit
-        self.delta_sets = None # tuple of datasets for delta set
+        self.delta_sets = None #  tuple of datasets for delta set
         self._display_parms = display_parms if display_parms else []
         self._plot_type = 'scatter'
         self._order = None  # Initialize the _order attribute
@@ -234,7 +238,6 @@ class Dataset:
         else:
             raise ValueError(f"Invalid plot_type value: {value}")
 
-
     @property
     def marker(self):
         return self._marker
@@ -256,7 +259,7 @@ class Dataset:
             self._linestyle = value
         else:
             raise ValueError(f"Invalid linestyle value: {value}")
-    
+   
     @property
     def display_parms(self):
         return self._display_parms
@@ -321,23 +324,6 @@ class Dataset:
             str: The title of the dataset.
         """
         return self.title
-    
-    # def delta_with(self, dataset, delta_parms, delta_type='index', delta_on=None):
-
-    #     df1 = self._df_full
-        
-    #     #interpret dataset
-    #     if isinstance(dataset, Dataset):
-    #         df2 = dataset._df_full
-    #     elif isinstance(dataset, pd.DataFrame):
-    #         df2 = dataset
-    #     else:
-    #         print("Invalid dataset")
-    #         return
-        
-    #     #interpret delta_type
-    #     if delta_type == 'index':
-
 
 def table_read(df, x_col, y_col, x_in):
     """
@@ -356,6 +342,7 @@ def table_read(df, x_col, y_col, x_in):
     f = interp1d(df_sorted[x_col], df_sorted[y_col], fill_value="extrapolate")
     y_interp = f(x_in)
     return y_interp
+
 
 def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None, marker=None, 
             markersize=12, marker_edge_color="black", hue_palette=default_hue_palette, 
@@ -400,7 +387,7 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
         fig = axes.figure
 
     if figsize is None:
-        figsize=(10, 8)
+        figsize = (10, 8)
 
     if dark_mode:
         plt.style.use('dark_background')
@@ -451,7 +438,10 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
         if dataset.select:
             df = dataset.df
 
-            if dataset.order:
+            if dataset.order == 'index':
+                df = df.sort_index()
+                sort=True
+            elif dataset.order:
                 sort_order = dataset.order
                 df = df.sort_values(by=sort_order)
                 sort=False #turn off autosort in lineplot
@@ -557,14 +547,17 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
         axes.set_ylabel(y, fontsize='x-large')
         
         if legend=='above':
-            axes.legend(bbox_to_anchor=(0., 1.02, 1., .102), 
-                        loc='upper left', 
+            axes.legend(bbox_to_anchor=(0., 1.02, 1., .102),
+                        loc='upper left',
                         ncols=legend_ncols)
         elif legend=='default':
             # axes.legend(ncols=legend_ncols)
             pass
         elif legend=='off':
-            axes.get_legend().remove()
+            try:
+                axes.get_legend().remove()
+            except Exception as e:
+                print(f"Error: {e} while remove legend")
         else:
             print(f"legend input {legend}")
 
