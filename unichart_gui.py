@@ -12,6 +12,7 @@ import sys
 from DataFrameViewer import DataFrameManagerApp as DFV
 import numpy as np
 import mplcursors
+from numbers import Number
 
 # Import functions
 from datasets_and_plot_functions import (
@@ -171,7 +172,7 @@ class UniChart:
         self.figure.set_size_inches(width, height)
         self.canvas.draw()
 
-    def line(self, column, line_level, color='red'):
+    def line(self, column, line_level, color='red', linestyle='-', linewidth=1.0, alpha=1.0):
         """
         Add a line at the specified level on the axis corresponding to the column.
 
@@ -179,13 +180,33 @@ class UniChart:
             column (str): The name of the column.
             line_level (float): The value at which to draw the line.
             color (str): The color of the line.
+            linestyle (str, optional): The style of the line (e.g., '-', '--', '-.', ':'). Default is '-'.
+            linewidth (float, optional): The width of the line. Default is 1.0.
+            alpha (float, optional): The transparency level of the line. Default is 1.0.
         """
+        if line_level == 'clear':
+            if column in self.lines:
+                self.lines.pop(column)
+                print(f"Cleared lines on '{column}' axis.")
+            else:
+                print(f"No lines to clear on '{column}' axis.")
+            return
+
+        elif not isinstance(line_level, Number):
+            print("Error: line_level must be a number.")
+            return
         if column not in self.lines:
             self.lines[column] = []
-        self.lines[column].append((line_level, color))
-        print(f"Added line at {line_level} on '{column}' axis with color '{color}'.")
+        self.lines[column].append({
+            'line_level': line_level,
+            'color': color,
+            'linestyle': linestyle,
+            'linewidth': linewidth,
+            'alpha': alpha,
+        })
+        print(f"Added line at {line_level} on '{column}' axis with color '{color}', linestyle '{linestyle}', linewidth {linewidth}, alpha {alpha}.")
 
-    def highlight(self, column, highlight_range, color='yellow', alpha=0.2):
+    def highlight(self, column, highlight_range, color='yellow', alpha=0.2, **kwargs):
         """
         Highlight a range on the axis corresponding to the column.
 
@@ -193,33 +214,70 @@ class UniChart:
             column (str): The name of the column.
             highlight_range (tuple): A (min, max) tuple defining the range to highlight.
             color (str, optional): The color of the highlight. Default is 'yellow'.
-            alpha (float, optional): The transparency level of the highlight. Default is 0.5.
+            alpha (float, optional): The transparency level of the highlight. Default is 0.2.
+            **kwargs: Additional keyword arguments to pass to axvspan/axhspan (e.g., 'hatch', 'edgecolor').
         """
+        if highlight_range == 'clear':
+            if column in self.highlights:
+                self.highlights.pop(column)
+                print(f"Cleared highlights on '{column}' axis.")
+            else:
+                print(f"No highlights to clear on '{column}' axis.")
+            return
         if not isinstance(highlight_range, tuple) or len(highlight_range) != 2:
             print("Error: highlight_range should be a tuple of length 2 (min, max).")
             return
         if column not in self.highlights:
             self.highlights[column] = []
-        self.highlights[column].append((highlight_range, color, alpha))
-        print(f"Added highlight on '{column}' axis from {highlight_range[0]} to {highlight_range[1]} with color '{color}' and alpha {alpha}.")
+        self.highlights[column].append({
+            'highlight_range': highlight_range,
+            'color': color,
+            'alpha': alpha,
+            'kwargs': kwargs
+        })
+        print(f"Added highlight on '{column}' axis from {highlight_range[0]} to {highlight_range[1]} with color '{color}', alpha {alpha}, and additional kwargs {kwargs}.")
 
     def add_lines_and_highlights(self, ax, x_col, y_col):
         # Add lines for x_col (vertical lines)
         if x_col in self.lines:
-            for line_level, color in self.lines[x_col]:
-                ax.axvline(x=line_level, color=color)
+            for line_props in self.lines[x_col]:
+                ax.axvline(
+                    x=line_props['line_level'],
+                    color=line_props['color'],
+                    linestyle=line_props.get('linestyle', '-'),
+                    linewidth=line_props.get('linewidth', 1.0),
+                    alpha=line_props.get('alpha', 1.0),
+                )
         # Add lines for y_col (horizontal lines)
         if y_col in self.lines:
-            for line_level, color in self.lines[y_col]:
-                ax.axhline(y=line_level, color=color)
+            for line_props in self.lines[y_col]:
+                ax.axhline(
+                    y=line_props['line_level'],
+                    color=line_props['color'],
+                    linestyle=line_props.get('linestyle', '-'),
+                    linewidth=line_props.get('linewidth', 1.0),
+                    alpha=line_props.get('alpha', 1.0)
+                )
         # Add highlights for x_col (vertical bands)
         if x_col in self.highlights:
-            for highlight_range, color, alpha in self.highlights[x_col]:
-                ax.axvspan(highlight_range[0], highlight_range[1], color=color, alpha=alpha)
+            for highlight_props in self.highlights[x_col]:
+                ax.axvspan(
+                    highlight_props['highlight_range'][0],
+                    highlight_props['highlight_range'][1],
+                    color=highlight_props['color'],
+                    alpha=highlight_props['alpha'],
+                    **highlight_props.get('kwargs', {})
+                )
         # Add highlights for y_col (horizontal bands)
         if y_col in self.highlights:
-            for highlight_range, color, alpha in self.highlights[y_col]:
-                ax.axhspan(highlight_range[0], highlight_range[1], color=color, alpha=alpha)
+            for highlight_props in self.highlights[y_col]:
+                ax.axhspan(
+                    highlight_props['highlight_range'][0],
+                    highlight_props['highlight_range'][1],
+                    color=highlight_props['color'],
+                    alpha=highlight_props['alpha'],
+                    **highlight_props.get('kwargs', {})
+                )
 
     def get_exec_env(self):
         return self.exec_env
