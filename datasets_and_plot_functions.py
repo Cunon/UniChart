@@ -559,7 +559,9 @@ def uniplot(list_of_datasets, x, y, z=None, plot_type=None, color=None, hue=None
             except Exception as e:
                 print(f"Error: {e} while remove legend")
         else:
-            print(f"legend input {legend}")
+            continue
+            # print(f"legend input {legend}")
+
 
         if interactive:
 

@@ -146,7 +146,13 @@ class UniChart:
         # Initialize dark mode flag
         self.dark_mode = False
 
-        self.axis_limits = dict()
+        self.axis_limits = dict() # {column: (min, max), ...}
+        # Initialize lines and highlights dictionaries
+        self.lines = dict()       # {column: [(line_level, color), ...], ...}
+        self.highlights = dict()  # {column: [(highlight_range, color, alpha), ...], ...}
+
+        # Create an execution environment
+        self.initialize_exec_env()
         # Create an execution environment
         self.initialize_exec_env()
 
@@ -164,6 +170,56 @@ class UniChart:
         """
         self.figure.set_size_inches(width, height)
         self.canvas.draw()
+
+    def line(self, column, line_level, color='red'):
+        """
+        Add a line at the specified level on the axis corresponding to the column.
+
+        Args:
+            column (str): The name of the column.
+            line_level (float): The value at which to draw the line.
+            color (str): The color of the line.
+        """
+        if column not in self.lines:
+            self.lines[column] = []
+        self.lines[column].append((line_level, color))
+        print(f"Added line at {line_level} on '{column}' axis with color '{color}'.")
+
+    def highlight(self, column, highlight_range, color='yellow', alpha=0.2):
+        """
+        Highlight a range on the axis corresponding to the column.
+
+        Args:
+            column (str): The name of the column.
+            highlight_range (tuple): A (min, max) tuple defining the range to highlight.
+            color (str, optional): The color of the highlight. Default is 'yellow'.
+            alpha (float, optional): The transparency level of the highlight. Default is 0.5.
+        """
+        if not isinstance(highlight_range, tuple) or len(highlight_range) != 2:
+            print("Error: highlight_range should be a tuple of length 2 (min, max).")
+            return
+        if column not in self.highlights:
+            self.highlights[column] = []
+        self.highlights[column].append((highlight_range, color, alpha))
+        print(f"Added highlight on '{column}' axis from {highlight_range[0]} to {highlight_range[1]} with color '{color}' and alpha {alpha}.")
+
+    def add_lines_and_highlights(self, ax, x_col, y_col):
+        # Add lines for x_col (vertical lines)
+        if x_col in self.lines:
+            for line_level, color in self.lines[x_col]:
+                ax.axvline(x=line_level, color=color)
+        # Add lines for y_col (horizontal lines)
+        if y_col in self.lines:
+            for line_level, color in self.lines[y_col]:
+                ax.axhline(y=line_level, color=color)
+        # Add highlights for x_col (vertical bands)
+        if x_col in self.highlights:
+            for highlight_range, color, alpha in self.highlights[x_col]:
+                ax.axvspan(highlight_range[0], highlight_range[1], color=color, alpha=alpha)
+        # Add highlights for y_col (horizontal bands)
+        if y_col in self.highlights:
+            for highlight_range, color, alpha in self.highlights[y_col]:
+                ax.axhspan(highlight_range[0], highlight_range[1], color=color, alpha=alpha)
 
     def get_exec_env(self):
         return self.exec_env
@@ -215,7 +271,11 @@ class UniChart:
             'linestyle': self.linestyle,  
             'hue': self.hue,  
             'plot_type': self.plot_type,  
+
+            #ax and fig formatting
             'settitle': self.title,  
+            'highlight': self.highlight,
+            'line': self.line,
 
             # Data management
             'load_df': self.load_df,
@@ -241,6 +301,8 @@ class UniChart:
             'help': self.help,
             'save_png': self.save_png,
             'save_ucmd': self.save_ucmd,
+
+            # File management
             'cd': self.cd,
             'pwd': self.pwd,
             'ls': self.ls,
@@ -265,7 +327,7 @@ class UniChart:
             'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
             'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
             'plot_type', 'markersize', 'settitle', 'mkdir', 'scale', 'order',
-            'figure', 'set_title', 'set_xlabel', 'set_ylabel', 'make_report_df', 'list_cols'
+            'figure', 'set_title', 'set_xlabel', 'set_ylabel', 'make_report_df', 'list_cols', 'line', 'highlight'
         ]
         for key in read_only_keys:
             self.exec_env.make_read_only(key)
@@ -706,6 +768,8 @@ class UniChart:
                         figsize=figsize,
                         x_lim=x_lim_ax, 
                         y_lim=y_lim_ax)
+                # Add lines and highlights after plotting
+                self.add_lines_and_highlights(ax, x, y_val)
 
         else:
             ax = self.figure.add_subplot(111)
@@ -728,6 +792,9 @@ class UniChart:
                     figsize=figsize,
                     x_lim=x_lim_ax,
                     y_lim=y_lim_ax)
+            
+            # Add lines and highlights after plotting
+            self.add_lines_and_highlights(ax, x, y)
 
         # Redraw the canvas
         self.canvas.draw()
