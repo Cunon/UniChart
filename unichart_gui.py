@@ -96,13 +96,18 @@ class UniChart:
 
         # Add the canvas to the plot_frame
         self.canvas = FigureCanvasTkAgg(self.figure, self.plot_frame)
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        self.canvas.get_tk_widget().grid(row=1, column=0, sticky='nsew')
 
         # Add the navigation toolbar
         self.toolbar_frame = tk.Frame(self.plot_frame)
-        self.toolbar_frame.pack(side=tk.TOP, fill=tk.X)
         self.toolbar = NavigationToolbar2Tk(self.canvas, self.toolbar_frame)
         self.toolbar.update()
+        self.toolbar_frame.grid(row=0, column=0, sticky='ew')
+
+        # Configure grid weights
+        self.plot_frame.grid_rowconfigure(0, weight=0)  # Toolbar row does not expand
+        self.plot_frame.grid_rowconfigure(1, weight=1)  # Canvas row expands to fill space
+        self.plot_frame.grid_columnconfigure(0, weight=1)
 
         # Create a Text widget for history and add it to the paned window
         self.history = scrolledtext.ScrolledText(self.paned_window, wrap=tk.WORD, height=10, state='disabled')
