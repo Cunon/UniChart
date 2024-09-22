@@ -345,9 +345,12 @@ class UniChart:
             'fucmd': self.fast_ucmd,
             'fast_ucmd': self.fast_ucmd,
             'ucmd_file': self.ucmd_file,
-            'delta': self.delta,
             'exec_env': self.get_exec_env,
             'order': self.order,
+
+            # Set manipulation
+            'delta': self.delta,
+            'rate_of_change': self.rate_of_change,
 
             # Utility functions
             'print_usets': self.print_usets, 
@@ -390,7 +393,8 @@ class UniChart:
             'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
             'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
             'plot_type', 'markersize', 'settitle', 'mkdir', 'scale', 'order',
-            'figure', 'set_title', 'set_xlabel', 'set_ylabel', 'make_report_df', 'list_cols', 'line', 'highlight'
+            'figure', 'set_title', 'set_xlabel', 'set_ylabel', 'make_report_df', 'list_cols', 'line', 'highlight',
+            'rate_of_change', 
         ]
         for key in read_only_keys:
             self.exec_env.make_read_only(key)
@@ -944,6 +948,39 @@ class UniChart:
             print(f"Set {next_index}: {dataset.get_title()}")
 
             next_index += 1
+
+    def rate_of_change(self, uset_slice=None, time_col=None, parm_col=None, new_col_name=None):
+        """
+        Calculate the rate of change of parm_col with respect to time_col for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to process. Default is None.
+            time_col (str): The name of the time column.
+            parm_col (str): The name of the parameter column.
+            new_col_name (str): The name of the new column to store the rate of change. If None, defaults to 'd{parm_col}_dt'.
+        """
+        if new_col_name is None:
+            new_col_name = f"d{parm_col}_dt"
+
+        if time_col is None or parm_col is None:
+            print("Error: time_col and parm_col must be provided.")
+            return
+
+        uset_slice = self.get_uset_slice(uset_slice)
+
+        for dataset in uset_slice:
+            df_full = dataset._df_full.copy()
+            df_full[new_col_name] = df_full[parm_col].diff() / df_full[time_col].diff()
+            dataset._df_full = df_full
+
+            # Update dataset.df according to any query
+            if dataset.query:
+                dataset.df = df_full.query(dataset.query)
+            else:
+                dataset.df = df_full
+
+            print(f"Added rate of change column '{new_col_name}' to dataset {dataset.index}.")
+
 
     def delta(self, base_set, study_sets=None, passed_parms=None, delta_parms=None, align_on=None, suffixes=("_BASE", "")):
         """
