@@ -1,4 +1,5 @@
 import os
+import re
 import tkinter as tk
 from tkinter import scrolledtext, filedialog, messagebox
 from matplotlib.figure import Figure
@@ -11,6 +12,7 @@ import sys
 from DataFrameViewer import DataFrameManagerApp as DFV
 import numpy as np
 import mplcursors
+from numbers import Number
 
 # Import functions
 from datasets_and_plot_functions import (
@@ -39,40 +41,8 @@ def str_to_var_name(s):
     Returns:
         str: The converted variable name.
     """
-    s=s.strip()
-    s = s.replace(" ", "_")
-    s = s.replace(":", "")
-    s = s.replace(".", "_")
-    s = s.replace(",", "_")
-    s = s.replace("(", "")
-    s = s.replace(")", "")
-    s = s.replace("+", "")
-    s = s.replace("-", "")
-    s = s.replace("/", "")
-    s = s.replace("*", "")
-    s = s.replace("%", "")
-    s = s.replace("^", "")
-    s = s.replace("=", "")
-    s = s.replace(">", "")
-    s = s.replace("<", "")
-    s = s.replace("!", "")
-    s = s.replace("?", "")
-    s = s.replace(";", "")
-    s = s.replace("'", "")
-    s = s.replace('"', "")
-    s = s.replace("#", "")
-    s = s.replace("@", "")
-    s = s.replace("&", "")
-    s = s.replace("|", "")
-    s = s.replace("\\", "")
-    s = s.replace("/", "")
-    s = s.replace("~", "")
-    s = s.replace("`", "")
-    s = s.replace("[", "")
-    s = s.replace("]", "")
-    s = s.replace("{", "")
-    s = s.replace("}", "")
-
+    s = s.strip()
+    s = re.sub(r'\W|^(?=\d)', '_', s)
     return s
 
 class ReadOnlyDict(dict):
@@ -114,22 +84,38 @@ class UniChart:
 
         # Create a figure for plotting with a customizable size
         self.figure = Figure(figsize=figsize, dpi=100)
-        self.canvas = FigureCanvasTkAgg(self.figure, self.root)
-        self.canvas.get_tk_widget().grid(row=0, column=0, columnspan=2, sticky='nsew')
+        self.axes = []  # Initialize axes list
+
+        # Create a PanedWindow to hold the canvas and history
+        self.paned_window = tk.PanedWindow(self.root, orient=tk.VERTICAL)
+        self.paned_window.grid(row=0, column=0, columnspan=2, sticky='nsew')
+
+        # Create a frame to hold the canvas and toolbar
+        self.plot_frame = tk.Frame(self.paned_window)
+        self.paned_window.add(self.plot_frame)
+
+        # Add the canvas to the plot_frame
+        self.canvas = FigureCanvasTkAgg(self.figure, self.plot_frame)
+        self.canvas.get_tk_widget().grid(row=1, column=0, sticky='nsew')
 
         # Add the navigation toolbar
-        self.toolbar_frame = tk.Frame(self.root)
-        self.toolbar_frame.grid(row=1, column=0, columnspan=2, sticky='nsew')
+        self.toolbar_frame = tk.Frame(self.plot_frame)
         self.toolbar = NavigationToolbar2Tk(self.canvas, self.toolbar_frame)
         self.toolbar.update()
+        self.toolbar_frame.grid(row=0, column=0, sticky='ew')
 
-        # Create a Text widget for history
-        self.history = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, height=10, state='disabled')
-        self.history.grid(row=2, column=0, columnspan=2, sticky='nsew')
+        # Configure grid weights
+        self.plot_frame.grid_rowconfigure(0, weight=0)  # Toolbar row does not expand
+        self.plot_frame.grid_rowconfigure(1, weight=1)  # Canvas row expands to fill space
+        self.plot_frame.grid_columnconfigure(0, weight=1)
+
+        # Create a Text widget for history and add it to the paned window
+        self.history = scrolledtext.ScrolledText(self.paned_window, wrap=tk.WORD, height=10, state='disabled')
+        self.paned_window.add(self.history)
 
         # Create a ScrolledText widget for input
         self.entry = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, height=2)
-        self.entry.grid(row=3, column=0, columnspan=2, sticky='nsew')
+        self.entry.grid(row=1, column=0, columnspan=2, sticky='nsew')
         self.entry.bind("<Return>", self.execute_command)
         self.entry.bind("<Shift-Return>", self.add_newline)
         self.entry.bind("<Up>", lambda event: self.navigate_history(event, 'up'))
@@ -137,9 +123,7 @@ class UniChart:
 
         # Configure grid weights to ensure proper resizing
         self.root.grid_rowconfigure(0, weight=1)
-        self.root.grid_rowconfigure(1, weight=0)  # Toolbar row
-        self.root.grid_rowconfigure(2, weight=1, minsize=100)  # History row
-        self.root.grid_rowconfigure(3, weight=0)  # Entry row
+        self.root.grid_rowconfigure(1, weight=0)  # Entry row
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
 
@@ -168,7 +152,13 @@ class UniChart:
         # Initialize dark mode flag
         self.dark_mode = False
 
-        self.axis_limits = dict()
+        self.axis_limits = dict() # {column: (min, max), ...}
+        # Initialize lines and highlights dictionaries
+        self.lines = dict()       # {column: [(line_level, color), ...], ...}
+        self.highlights = dict()  # {column: [(highlight_range, color, alpha), ...], ...}
+
+        # Create an execution environment
+        self.initialize_exec_env()
         # Create an execution environment
         self.initialize_exec_env()
 
@@ -186,6 +176,113 @@ class UniChart:
         """
         self.figure.set_size_inches(width, height)
         self.canvas.draw()
+
+    def line(self, column, line_level, color='red', linestyle='-', linewidth=1.0, alpha=1.0):
+        """
+        Add a line at the specified level on the axis corresponding to the column.
+
+        Args:
+            column (str): The name of the column.
+            line_level (float): The value at which to draw the line.
+            color (str): The color of the line.
+            linestyle (str, optional): The style of the line (e.g., '-', '--', '-.', ':'). Default is '-'.
+            linewidth (float, optional): The width of the line. Default is 1.0.
+            alpha (float, optional): The transparency level of the line. Default is 1.0.
+        """
+        if line_level == 'clear':
+            if column in self.lines:
+                self.lines.pop(column)
+                print(f"Cleared lines on '{column}' axis.")
+            else:
+                print(f"No lines to clear on '{column}' axis.")
+            return
+
+        elif not isinstance(line_level, Number):
+            print("Error: line_level must be a number.")
+            return
+        if column not in self.lines:
+            self.lines[column] = []
+        self.lines[column].append({
+            'line_level': line_level,
+            'color': color,
+            'linestyle': linestyle,
+            'linewidth': linewidth,
+            'alpha': alpha,
+        })
+        print(f"Added line at {line_level} on '{column}' axis with color '{color}', linestyle '{linestyle}', linewidth {linewidth}, alpha {alpha}.")
+
+    def highlight(self, column, highlight_range, color='yellow', alpha=0.2, **kwargs):
+        """
+        Highlight a range on the axis corresponding to the column.
+
+        Args:
+            column (str): The name of the column.
+            highlight_range (tuple): A (min, max) tuple defining the range to highlight.
+            color (str, optional): The color of the highlight. Default is 'yellow'.
+            alpha (float, optional): The transparency level of the highlight. Default is 0.2.
+            **kwargs: Additional keyword arguments to pass to axvspan/axhspan (e.g., 'hatch', 'edgecolor').
+        """
+        if highlight_range == 'clear':
+            if column in self.highlights:
+                self.highlights.pop(column)
+                print(f"Cleared highlights on '{column}' axis.")
+            else:
+                print(f"No highlights to clear on '{column}' axis.")
+            return
+        if not isinstance(highlight_range, tuple) or len(highlight_range) != 2:
+            print("Error: highlight_range should be a tuple of length 2 (min, max).")
+            return
+        if column not in self.highlights:
+            self.highlights[column] = []
+        self.highlights[column].append({
+            'highlight_range': highlight_range,
+            'color': color,
+            'alpha': alpha,
+            'kwargs': kwargs
+        })
+        print(f"Added highlight on '{column}' axis from {highlight_range[0]} to {highlight_range[1]} with color '{color}', alpha {alpha}, and additional kwargs {kwargs}.")
+
+    def add_lines_and_highlights(self, ax, x_col, y_col):
+        # Add lines for x_col (vertical lines)
+        if x_col in self.lines:
+            for line_props in self.lines[x_col]:
+                ax.axvline(
+                    x=line_props['line_level'],
+                    color=line_props['color'],
+                    linestyle=line_props.get('linestyle', '-'),
+                    linewidth=line_props.get('linewidth', 1.0),
+                    alpha=line_props.get('alpha', 1.0),
+                )
+        # Add lines for y_col (horizontal lines)
+        if y_col in self.lines:
+            for line_props in self.lines[y_col]:
+                ax.axhline(
+                    y=line_props['line_level'],
+                    color=line_props['color'],
+                    linestyle=line_props.get('linestyle', '-'),
+                    linewidth=line_props.get('linewidth', 1.0),
+                    alpha=line_props.get('alpha', 1.0)
+                )
+        # Add highlights for x_col (vertical bands)
+        if x_col in self.highlights:
+            for highlight_props in self.highlights[x_col]:
+                ax.axvspan(
+                    highlight_props['highlight_range'][0],
+                    highlight_props['highlight_range'][1],
+                    color=highlight_props['color'],
+                    alpha=highlight_props['alpha'],
+                    **highlight_props.get('kwargs', {})
+                )
+        # Add highlights for y_col (horizontal bands)
+        if y_col in self.highlights:
+            for highlight_props in self.highlights[y_col]:
+                ax.axhspan(
+                    highlight_props['highlight_range'][0],
+                    highlight_props['highlight_range'][1],
+                    color=highlight_props['color'],
+                    alpha=highlight_props['alpha'],
+                    **highlight_props.get('kwargs', {})
+                )
 
     def get_exec_env(self):
         return self.exec_env
@@ -220,64 +317,86 @@ class UniChart:
             'Dataset': Dataset,
 
             # Loaded Functions
-            'plot':self.plot,  
+            'plot': self.plot,
+            'make_report_df': self.make_report_df,
 
             # Selection and filtering
-            'omit':self.omit,
-            'select':self.select,
-            'restore':self.restore,
-            'query':self.query,
-            'scale':self.scale,
+            'omit': self.omit,
+            'select': self.select,
+            'restore': self.restore,
+            'query': self.query,
+            'scale': self.scale,
 
             # Set formatting
-            'color':self.color,  
-            'marker':self.marker,
-            'markersize':self.markersize,
-            'linestyle':self.linestyle,  
-            'hue':self.hue,  
-            'plot_type':self.plot_type,  
-            'settitle':self.title,  
+            'color': self.color,  
+            'marker': self.marker,
+            'markersize': self.markersize,
+            'linestyle': self.linestyle,  
+            'hue': self.hue,  
+            'plot_type': self.plot_type,  
+
+            #ax and fig formatting
+            'settitle': self.title,  
+            'highlight': self.highlight,
+            'line': self.line,
 
             # Data management
-            'load_df':self.load_df,
-            'fucmd':self.fast_ucmd,
-            'fast_ucmd':self.fast_ucmd,
-            'ucmd_file':self.ucmd_file,
-            'ucmdfile':self.ucmd_file,
-            'delta':self.delta,
-            'exec_env':self.get_exec_env,
-            'order':self.order,
+            'load_df': self.load_df,
+            'fucmd': self.fast_ucmd,
+            'fast_ucmd': self.fast_ucmd,
+            'ucmd_file': self.ucmd_file,
+            'exec_env': self.get_exec_env,
+            'order': self.order,
+
+            # Set manipulation
+            'delta': self.delta,
+            'rate_of_change': self.rate_of_change,
 
             # Utility functions
-            'print_usets':self.print_usets, 
-            'list_usets':self.print_usets, 
-            'list_sets':self.print_usets,
+            'print_usets': self.print_usets, 
+            'list_usets': self.print_usets, 
+            'list_sets': self.print_usets,
 
             'print_columns': print_columns,
-            'list_parms':self.print_columns_in_dataset,
-            'list_cols':self.print_columns_in_dataset,
+            'list_parms': self.print_columns_in_dataset,
+            'list_cols': self.print_columns_in_dataset,
 
             # Other functions
-            'clear':self.clear,
-            'restart':self.restart_program,
-            'help':self.help,
-            'save_png':self.save_png,
-            'save_ucmd':self.save_ucmd,
-            'cd':self.cd,
-            'pwd':self.pwd,
-            'ls':self.ls,
-            'mkdir':self.mkdir,
+            'clear': self.clear,
+            'restart': self.restart_program,
+            'help': self.help,
+            'save_png': self.save_png,
+            'save_ucmd': self.save_ucmd,
 
-            'uset': [], #initialize empty list of datasets
-            'toggle_darkmode':self.toggle_darkmode,
-            'darkmode': self.darkmode
+            # File management
+            'cd': self.cd,
+            'pwd': self.pwd,
+            'ls': self.ls,
+            'mkdir': self.mkdir,
+
+            'uset': [],  # Initialize empty list of datasets
+            'toggle_darkmode': self.toggle_darkmode,
+            'darkmode': self.darkmode,
+
+            # Expose figure and axes
+            'figure': self.figure,
+            'axes': self.axes,
+
+            # Helper functions
+            'set_title': self.set_title,
+            'set_xlabel': self.set_xlabel,
+            'set_ylabel': self.set_ylabel,
         })
 
-        # Make specific keys read-only
-        for key in ['plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
-                    'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
-                    'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
-                    'plot_type', 'markersize', 'settitle', 'mkdir', 'scale', 'order']:
+        read_only_keys = [
+            'plot', 'omit', 'select', 'restore', 'query', 'color', 'marker', 'linestyle', 'load_df',
+            'ucmd_file', 'delta', 'print_usets', 'list_parms', 'clear', 'restart', 'help', 'save_png',
+            'save_ucmd', 'cd', 'pwd', 'ls', 'toggle_darkmode', 'darkmode', 'hue', 'exec_env', 'sys',
+            'plot_type', 'markersize', 'settitle', 'mkdir', 'scale', 'order',
+            'figure', 'set_title', 'set_xlabel', 'set_ylabel', 'make_report_df', 'list_cols', 'line', 'highlight',
+            'rate_of_change', 
+        ]
+        for key in read_only_keys:
             self.exec_env.make_read_only(key)
 
     def execute_startup_script(self):
@@ -366,34 +485,20 @@ class UniChart:
 
     def restore(self, uset_slice=None):
         """
-        Select datasets for plotting.
+        Restore datasets to be selected for plotting.
 
         Args:
-            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to select. Default is None.
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to restore. Default is None.
         """
 
         if uset_slice == "all":
             for uset in self.exec_env['uset']:
                 uset.select = True
-                
+
         else:
-            deactive_sets = []
-
-            for uset in self.exec_env['uset']:
-                if uset.select == False:
-                    deactive_sets.append(uset.index)
-
             uset_slice = self.get_uset_slice(uset_slice)
-            
-            restore_sets = []
-            for uset in uset_slice:
-                restore_sets.append(uset.index)
-
-            # Inner merge between deactive_sets and uset_slice's indices
-            restored_indices = list(set(deactive_sets) & set(restore_sets))
-
-            for index in restored_indices:
-                self.exec_env['uset'][index].select = True
+            for dataset in uset_slice:
+                dataset.select = True
 
     def query(self, uset_slice=None, query=None):
         """
@@ -549,6 +654,79 @@ class UniChart:
         else:
             print('Error, title must be a string')
 
+    def make_report_df(self, uset_slice=None, pinch_parms=None, value_parms=None, subset_queries=None):
+        uset_slice = self.get_uset_slice(uset_slice)
+
+        if pinch_parms is None or value_parms is None:
+            raise ValueError("pinch_parms and value_parms must be provided")
+
+        rows = []
+
+        for ds in uset_slice:
+            df = ds.df
+
+            if subset_queries is None:
+                subsets = {'All Data': df}
+            else:
+                subsets = {}
+                for query in subset_queries:
+                    subset_df = df.query(query)
+                    subsets[query] = subset_df
+
+            for subset_name, subset_df in subsets.items():
+                if subset_df.empty:
+                    continue  # Skip empty subsets
+                row = {}
+                row['Dataset'] = ds.title
+                row['Subset'] = subset_name
+
+                for pinch_parm in pinch_parms:
+                    max_value = subset_df[pinch_parm].max()
+                    min_value = subset_df[pinch_parm].min()
+
+                    row[pinch_parm + '_Max'] = max_value
+                    row[pinch_parm + '_Min'] = min_value
+
+                    # Get indices where max and min occur
+                    idx_max = subset_df[subset_df[pinch_parm] == max_value].index
+                    idx_min = subset_df[subset_df[pinch_parm] == min_value].index
+
+                    for value_parm in value_parms:
+                        value_at_max = subset_df.loc[idx_max, value_parm]
+                        value_at_min = subset_df.loc[idx_min, value_parm]
+
+                        value_at_max_str = ', '.join(map(str, value_at_max.unique()))
+                        value_at_min_str = ', '.join(map(str, value_at_min.unique()))
+
+                        row[f"{value_parm}_at_{pinch_parm}_Max"] = value_at_max_str
+                        row[f"{value_parm}_at_{pinch_parm}_Min"] = value_at_min_str
+
+                rows.append(row)
+
+        report_df = pd.DataFrame(rows)
+
+        # Reorder the columns
+        columns = ['Dataset', 'Subset'] if subset_queries else ['Dataset']
+
+        # Collect Max columns first
+        for pinch_parm in pinch_parms:
+            columns.append(f"{pinch_parm}_Max")
+            for value_parm in value_parms:
+                columns.append(f"{value_parm}_at_{pinch_parm}_Max")
+
+        # Then Min columns
+        for pinch_parm in pinch_parms:
+            columns.append(f"{pinch_parm}_Min")
+            for value_parm in value_parms:
+                columns.append(f"{value_parm}_at_{pinch_parm}_Min")
+
+        # Ensure all columns are included (some may not exist if data is missing)
+        existing_columns = [col for col in columns if col in report_df.columns]
+        report_df = report_df[existing_columns]
+
+        return report_df
+
+
     def plot(self, x=None, y=None, z=None, list_of_datasets=None, formatting_dict=None, color=None, hue=None,
             marker=None, markersize=12, marker_edge_color=None,
             hue_palette=default_hue_palette, hue_order=None, line=False, 
@@ -586,11 +764,11 @@ class UniChart:
 
         if figsize is not None:
             try:
-                self.set_canvas_size(figsize[0],figsize[1])
+                self.set_canvas_size(figsize[0], figsize[1])
             except Exception as e:
                 print(f"Error: {e}")
         else:
-            figsize=(10, 8)
+            figsize = (10, 8)
 
         acceptable_legend_values = ['default', 'on', 'off']
         if legend is None:
@@ -613,179 +791,122 @@ class UniChart:
         suptitle = self.exec_env['suptitle']
         display_parms = self.exec_env['display_parms']
         
-        self.figure.clf()  # Clear the current figure
-        
+        # Clear the current figure and axes
+        self.figure.clf()
+        self.axes = []
+        self.exec_env['axes'] = self.axes  # Update axes in execution environment
+
+        # Plotting code
         if isinstance(y, list):
             num_plots = len(y)
 
             if format == 'stack':
-                axs = self.figure.subplots(num_plots, 1, squeeze=False).flatten()
+                axs = self.figure.subplots(num_plots, 1, squeeze=False)
             elif format == 'std':
-                axs = self.figure.subplots(1, num_plots, squeeze=False).flatten()
+                axs = self.figure.subplots(1, num_plots, squeeze=False)
             elif format in ['sq', 'square']:
                 ncols = int(np.ceil(np.sqrt(num_plots)))
                 nrows = int(np.ceil(num_plots / ncols))
-                axs = self.figure.subplots(nrows, ncols, squeeze=False).flatten()
+                axs = self.figure.subplots(nrows, ncols, squeeze=False)
             else:
                 print("Error: format must be one of 'stack', 'std', or 'square'.")
                 return
+
+            axs = axs.flatten()
+            self.axes = axs.tolist()
+            self.exec_env['axes'] = self.axes  # Update axes in execution environment
 
             for i, y_val in enumerate(y):
                 ax = axs[i]
 
                 # Check for axis limits set using the scale method
-                x_lim = self.axis_limits.get(x, x_lim)
-                y_lim = self.axis_limits.get(y_val, y_lim)
+                x_lim_ax = self.axis_limits.get(x, x_lim)
+                y_lim_ax = self.axis_limits.get(y_val, y_lim)
 
-                uniplot(uset, x, y_val, 
-                        return_axes=False, 
+                uniplot(list_of_datasets, x, y_val, 
+                        axes=ax, 
                         suptitle=suptitle, 
                         grid=True, 
                         display_parms=display_parms, 
-                        axes=ax, 
                         dark_mode=self.dark_mode, 
                         interactive=interactive,
                         legend=legend,
                         legend_ncols=legend_ncols,
                         figsize=figsize,
-                        x_lim=x_lim, 
-                        y_lim=y_lim)
-
-                if interactive:
-                    cursor = mplcursors.cursor(ax)
-
-                    @cursor.connect("add")
-                    def on_add(sel):
-                        selected_title = sel.artist.get_label()
-                        try:
-                            set_number = int(selected_title.split(":")[0])
-                        except ValueError:
-                            # Handle unexpected label formats
-                            print(f"Unexpected label format: {selected_title}")
-                            return
-
-                        selected_dataset = list_of_datasets[set_number]
-                        selected_df = selected_dataset.df
-
-                        annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset {selected_dataset.index}: {selected_dataset.title}'
-                        effective_display_parms = display_parms if display_parms else selected_dataset.display_parms
-
-                        if effective_display_parms:
-                            header = '\n{:<25} {:<5}'.format('Parameter', 'Value')
-                            annotation_text += header
-                            annotation_text += '\n' + '-'*35
-
-                            def add_parameter(parm, value, interp=False):
-                                value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else str(value)
-                                interp_str = ' (interp)' if interp else ''
-                                
-                                formatted_line = f'{parm:<20} {value_str:>10}{interp_str}'
-                                
-                                nonlocal annotation_text
-                                annotation_text += '\n' + formatted_line
-
-                            if isinstance(sel.index, np.intc):
-                                for parm in effective_display_parms:
-                                    if parm in selected_df.columns:
-                                        value = selected_df[parm].iloc[sel.index]
-                                        add_parameter(parm, value)
-                            elif isinstance(sel.index, (int, float, np.integer, np.floating)):
-                                try:
-                                    float_index = float(sel.index)
-                                    low_index = np.floor(float_index)
-                                    high_index = np.ceil(float_index)
-                                    for parm in effective_display_parms:
-                                        if parm in selected_df.columns:
-                                            low_value = selected_df[parm].iloc[low_index]
-                                            high_value = selected_df[parm].iloc[high_index]
-                                            value = low_value + (float_index - low_index) * (high_value - low_value)
-                                            add_parameter(parm, value, interp=True)
-                                except Exception as e:
-                                    print(f"Error: {e}")
-                                    return
-                            else:
-                                print(f"Invalid index: {sel.index}, Type: {type(sel.index)}")
-                                return
-                            
-                        sel.annotation.set(text=annotation_text, color='black')
-                        sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
+                        x_lim=x_lim_ax, 
+                        y_lim=y_lim_ax)
+                # Add lines and highlights after plotting
+                self.add_lines_and_highlights(ax, x, y_val)
 
         else:
-            ax = self.figure.add_subplot(111)  # Add a new subplot
-            uniplot(uset, x, y, 
-                    return_axes=False, 
+            ax = self.figure.add_subplot(111)
+            self.axes = [ax]
+            self.exec_env['axes'] = self.axes  # Update axes in execution environment
+
+            # Check for axis limits set using the scale method
+            x_lim_ax = self.axis_limits.get(x, x_lim)
+            y_lim_ax = self.axis_limits.get(y, y_lim)
+
+            uniplot(list_of_datasets, x, y, 
+                    axes=ax, 
                     suptitle=suptitle, 
                     grid=True, 
                     display_parms=display_parms, 
-                    axes=ax, 
                     dark_mode=self.dark_mode, 
                     interactive=interactive,
                     legend=legend,
                     legend_ncols=legend_ncols,
                     figsize=figsize,
-                    x_lim=x_lim,
-                    y_lim=y_lim)
+                    x_lim=x_lim_ax,
+                    y_lim=y_lim_ax)
+            
+            # Add lines and highlights after plotting
+            self.add_lines_and_highlights(ax, x, y)
 
-            if interactive:
-                cursor = mplcursors.cursor(ax)
+        # Redraw the canvas
+        self.canvas.draw()
 
-                @cursor.connect("add")
-                def on_add(sel):
-                    selected_title = sel.artist.get_label()
-                    try:
-                        set_number = int(selected_title.split(":")[0])
-                    except ValueError:
-                        print(f"Unexpected label format: {selected_title}")
-                        return
+    def set_title(self, title, index=0):
+        """
+        Set the title of the specified subplot.
 
-                    selected_dataset = list_of_datasets[set_number]
-                    selected_df = selected_dataset.df
+        Args:
+            title (str): The title to set.
+            index (int, optional): The index of the subplot. Default is 0.
+        """
+        try:
+            self.axes[index].set_title(title)
+            self.canvas.draw()
+        except IndexError:
+            print(f"No axis at index {index}")
 
-                    annotation_text = f'Point: ({sel.target[0]:.2f}, {sel.target[1]:.2f})\nDataset {selected_dataset.index}: {selected_dataset.title}'
-                    effective_display_parms = display_parms if display_parms else selected_dataset.display_parms
+    def set_xlabel(self, xlabel, index=0):
+        """
+        Set the x-label of the specified subplot.
 
-                    if effective_display_parms:
-                        header = '\n{:<25} {:<5}'.format('Parameter', 'Value')
-                        annotation_text += header
-                        annotation_text += '\n' + '-'*35
+        Args:
+            xlabel (str): The label for the x-axis.
+            index (int, optional): The index of the subplot. Default is 0.
+        """
+        try:
+            self.axes[index].set_xlabel(xlabel)
+            self.canvas.draw()
+        except IndexError:
+            print(f"No axis at index {index}")
 
-                        def add_parameter(parm, value, interp=False):
-                            value_str = f'{value:.2f}' if isinstance(value, (int, float, np.integer, np.floating)) else str(value)
-                            interp_str = ' (interp)' if interp else ''
-                            
-                            formatted_line = f'{parm:<20} {value_str:>10}{interp_str}'
-                            
-                            nonlocal annotation_text
-                            annotation_text += '\n' + formatted_line
+    def set_ylabel(self, ylabel, index=0):
+        """
+        Set the y-label of the specified subplot.
 
-                        if isinstance(sel.index, np.intc):
-                            for parm in effective_display_parms:
-                                if parm in selected_df.columns:
-                                    value = selected_df[parm].iloc[sel.index]
-                                    add_parameter(parm, value)
-                        elif isinstance(sel.index, (int, float, np.integer, np.floating)):
-                            try:
-                                float_index = float(sel.index)
-                                low_index = np.floor(float_index)
-                                high_index = np.ceil(float_index)
-                                for parm in effective_display_parms:
-                                    if parm in selected_df.columns:
-                                        low_value = selected_df[parm].iloc[low_index]
-                                        high_value = selected_df[parm].iloc[high_index]
-                                        value = low_value + (float_index - low_index) * (high_value - low_value)
-                                        add_parameter(parm, value, interp=True)
-                            except Exception as e:
-                                print(f"Error: {e}")
-                                return
-                        else:
-                            print(f"Invalid index: {sel.index}, Type: {type(sel.index)}")
-                            return
-                        
-                    sel.annotation.set(text=annotation_text, color='black')
-                    sel.annotation.get_bbox_patch().set(fc="white", alpha=0.8)
-
-        self.canvas.draw()  
-
+        Args:
+            ylabel (str): The label for the y-axis.
+            index (int, optional): The index of the subplot. Default is 0.
+        """
+        try:
+            self.axes[index].set_ylabel(ylabel)
+            self.canvas.draw()
+        except IndexError:
+            print(f"No axis at index {index}")
 
     def load_df(self, df, title=None, allcaps=True, load_cols_as_vars=True):
         """
@@ -801,33 +922,65 @@ class UniChart:
         next_index = len(uset)
 
         # If no title is given, look for a TITLE column in the DataFrame
-        if not title: 
-            if not "TITLE" in df.columns:
+        if not title:
+            if "TITLE" not in df.columns:
                 df["TITLE"] = "Default Settitle"
                 title = "Default Settitle"
 
         if allcaps: 
-            df.columns = [col.upper() for col in df.columns]
+            df.columns = df.columns.str.upper()
 
         if load_cols_as_vars:
             for col in df.columns:
                 var_col = str_to_var_name(col)
                 try:
-                    exec(f"{var_col} = '{col}'", {}, self.exec_env)
-                    exec(f"{var_col.lower()} = '{col}'", {}, self.exec_env)
+                    self.exec_env[var_col] = col
+                    self.exec_env[var_col.lower()] = col
                 except Exception as e:
                     print(f"{e}: {col} not loaded as variable and needs to be referenced as a string")
 
         # Loop through unique titles and create subsets of the DataFrame
         display_parms = self.exec_env['default_display_parms']
-        for title_col in df["TITLE"].unique():
-            df_subset = df[df["TITLE"] == title_col]
+        for title_col, df_subset in df.groupby("TITLE"):
             dataset = Dataset(df_subset, index=next_index, display_parms=display_parms)
             uset.append(dataset)
                         
             print(f"Set {next_index}: {dataset.get_title()}")
 
             next_index += 1
+
+    def rate_of_change(self, uset_slice=None, time_col=None, parm_col=None, new_col_name=None):
+        """
+        Calculate the rate of change of parm_col with respect to time_col for datasets.
+
+        Args:
+            uset_slice (list or Dataset, optional): The list of datasets or a single dataset to process. Default is None.
+            time_col (str): The name of the time column.
+            parm_col (str): The name of the parameter column.
+            new_col_name (str): The name of the new column to store the rate of change. If None, defaults to 'd{parm_col}_dt'.
+        """
+        if new_col_name is None:
+            new_col_name = f"d{parm_col}_dt"
+
+        if time_col is None or parm_col is None:
+            print("Error: time_col and parm_col must be provided.")
+            return
+
+        uset_slice = self.get_uset_slice(uset_slice)
+
+        for dataset in uset_slice:
+            df_full = dataset._df_full.copy()
+            df_full[new_col_name] = df_full[parm_col].diff() / df_full[time_col].diff()
+            dataset._df_full = df_full
+
+            # Update dataset.df according to any query
+            if dataset.query:
+                dataset.df = df_full.query(dataset.query)
+            else:
+                dataset.df = df_full
+
+            print(f"Added rate of change column '{new_col_name}' to dataset {dataset.index}.")
+
 
     def delta(self, base_set, study_sets=None, passed_parms=None, delta_parms=None, align_on=None, suffixes=("_BASE", "")):
         """
@@ -869,13 +1022,13 @@ class UniChart:
 
         base_columns = list(dict.fromkeys(base_columns))  # Remove duplicates
 
-        df_base = base_set._df_full[base_columns].copy()
+        df_base = base_set._df_full[base_columns]
 
         for i, study_set in enumerate(study_sets):
             # Reduce the study dataframe to only the necessary columns
             study_columns = [align_on] + delta_parms
             study_columns = list(dict.fromkeys(study_columns))  # Remove duplicates
-            df_study = study_set._df_full[study_columns].copy()
+            df_study = study_set._df_full[study_columns]
 
             # Merge base and study datasets on the specified alignment column
             merged_df = pd.merge(df_base, df_study, suffixes=suffixes, how="inner", on=align_on)
@@ -884,7 +1037,7 @@ class UniChart:
             for parm in delta_parms:
                 try:
                     merged_df[f"DL_{parm}"] = merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"]
-                    merged_df[f"DLPCT_{parm}"] = 100 * (merged_df[f"{parm}{rsuffix}"] - merged_df[f"{parm}{lsuffix}"]) / merged_df[f"{parm}{lsuffix}"]
+                    merged_df[f"DLPCT_{parm}"] = 100 * merged_df[f"DL_{parm}"] / merged_df[f"{parm}{lsuffix}"]
                 except Exception as e:
                     print(f"Error computing delta for {parm}: {e}")
 

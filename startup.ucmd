@@ -13,7 +13,7 @@ load_df(df)
 uset[0].title=""
 
 omit(0)
-plot(x,y)
+plot(x,y, figsize=(8,8))
 
 uset=[]
 
