@@ -34,8 +34,10 @@ import inspect
 from scipy.interpolate import griddata
 import functools
 import gc
+import json
 import os
 import base64
+from datetime import datetime
 from pathlib import Path
 
 # -----------------------------------------------------------------------------
@@ -1229,6 +1231,10 @@ class _DatasetFrameView:
         elif incoming_object and cdf[key].dtype != object:
             cdf[key] = cdf[key].astype(object)
 
+        # Overwriting a column this set already owns changes values its
+        # source file cannot reproduce.
+        if key in self._dataset._own_cols:
+            self._dataset._mark_source_modified()
         cdf.loc[mask, key] = assign_val
         # Writing through the view claims the column for this set — including
         # the case of filling NaNs into a column another set introduced.
@@ -1327,11 +1333,26 @@ class Dataset:
         self.set_type = 1
         self.data_type = 'discrete'
         self.delta_sets = None
+        # Data provenance, populated by the load paths. ``file_path`` is the
+        # absolute source file (None for in-memory data); ``_source`` carries
+        # everything needed to re-create this set from its source again
+        # (read_kwargs, group split column/key, and the column set at load
+        # time so save_session can tell when derived columns were added).
+        # Cleared by df replacement, which severs the link to the source.
         self.file_path = None
+        self._source = None
         self._display_parms = coerce_display_parms(display_parms)
         self._plot_type = 'scatter'
         self._order = None
         self._zorder = 0
+
+    def _mark_source_modified(self):
+        """Record that a column this set loaded from its source has since been
+        overwritten. The source file no longer reproduces the set's values, so
+        save_session must embed the rows instead of writing a file reference
+        (added/removed columns are detected separately, via ``load_cols``)."""
+        if self._source is not None:
+            self._source['modified'] = True
 
     def _raw_df(self):
         """All rows for this set, unmasked, with _SET_ID stripped."""
@@ -3873,6 +3894,17 @@ class UnichartNotebook:
         # before the rebuild makes them indistinguishable from the new sets'.
         self._reconcile_columns()
 
+        # A pure append preserves existing rows' labels and positions whenever
+        # the current index is already a clean 0..n-1 range (every internal
+        # rebuild path guarantees this; only direct index surgery on nb.df can
+        # break it). In that case existing query masks stay exact — new rows
+        # belong to the new, query-less sets and _masked_positions reindexes
+        # masks over the longer index with fill_value=False — so the O(sets ×
+        # frame width) query re-evaluation below can be skipped.
+        idx = self._combined_df.index
+        labels_preserved = (isinstance(idx, pd.RangeIndex)
+                            and idx.start == 0 and idx.step == 1)
+
         tagged_frames, metas = [], []
         for df, title in frames_and_titles:
             if _SET_ID_COL in df.columns:
@@ -3908,7 +3940,8 @@ class UnichartNotebook:
                          own_cols=own_cols)
             self.sets.append(ds)
             created.append(ds)
-        self._reapply_all_queries()
+        if not labels_preserved:
+            self._reapply_all_queries()
         return created
 
     def _reapply_all_queries(self):
@@ -3934,10 +3967,14 @@ class UnichartNotebook:
             self._combined_df = pd.concat(
                 [kept, tagged], ignore_index=True, sort=False).copy()
         self._set_row_pos = {}
-        # The replacement frame defines this set's columns from scratch.
+        # The replacement frame defines this set's columns from scratch. It
+        # also severs the link to any source file: the rows no longer come
+        # from it, so save_session must embed this set's data instead.
         for ds in self.sets:
             if ds._set_id == set_id:
                 ds._own_cols = set(new_df.columns) - {_SET_ID_COL}
+                ds.file_path = None
+                ds._source = None
                 break
         self._snapshot_columns()
         # ignore_index rebuilds every row label, which staled all query masks
@@ -3972,19 +4009,27 @@ class UnichartNotebook:
 
         ``df`` may be a single DataFrame or a list of DataFrames. For a list, ``combined=True``
         concatenates them into one set, while ``combined=False`` loads each DataFrame separately.
+
+        Returns the list of Datasets created.
         """
         if isinstance(df, (list, tuple)):
             if combined:
                 df = pd.concat([self._dedupe_columns(d) for d in df],
                                ignore_index=True)
             else:
+                created = []
                 for single_df in df:
-                    self.load_df(single_df, title=title, set_name_column=set_name_column,
-                                 set_idx_column=set_idx_column, load_cols_as_vars=load_cols_as_vars)
-                return
+                    created.extend(self.load_df(
+                        single_df, title=title, set_name_column=set_name_column,
+                        set_idx_column=set_idx_column, load_cols_as_vars=load_cols_as_vars))
+                return created
 
         df = self._dedupe_columns(df).copy()
 
+        # Columns this call adds to the frame, recorded in each set's
+        # provenance so a file-referenced session set gets them back on
+        # reload (see _apply_synth_cols).
+        synth_cols = {}
         if not title:
             if set_name_column and set_name_column in df.columns:
                 pass
@@ -3993,6 +4038,7 @@ class UnichartNotebook:
             else:
                 df["TITLE"] = "Dataset"
                 set_name_column = "TITLE"
+                synth_cols["TITLE"] = {'kind': 'const', 'value': "Dataset"}
 
             if set_idx_column and set_idx_column in df.columns:
                 pass
@@ -4002,11 +4048,12 @@ class UnichartNotebook:
                 set_idx_column = "INDEX"
             else:
                 df["SETNUMBER"] = df.index
+                synth_cols["SETNUMBER"] = {'kind': 'index'}
 
         if set_idx_column and set_idx_column in df.columns:
             # Collect every group first and register them in one batch — one
             # combined-frame rebuild for the whole file instead of one per set.
-            groups = []
+            groups, group_keys = [], []
             for set_index, df_subset in df.groupby(set_idx_column):
                 if title:
                     final_title = title
@@ -4017,11 +4064,23 @@ class UnichartNotebook:
                 else:
                     final_title = f"Group {set_index}"
                 groups.append((df_subset, final_title))
+                group_keys.append(set_index)
 
-            for ds in self._register_sets(groups):
+            created = self._register_sets(groups)
+            for ds, key in zip(created, group_keys):
+                ds._source = {'path': None, 'read_kwargs': None,
+                              'set_idx_column': set_idx_column,
+                              'group_key': key.item() if hasattr(key, 'item') else key,
+                              'synth_cols': dict(synth_cols),
+                              'load_cols': set(ds._own_cols)}
                 print(f"Loaded Set {ds.index}: {ds.title}")
         else:
             ds = self._register_set(df, title if title else "Untitled")
+            ds._source = {'path': None, 'read_kwargs': None,
+                          'set_idx_column': None, 'group_key': None,
+                          'synth_cols': dict(synth_cols),
+                          'load_cols': set(ds._own_cols)}
+            created = [ds]
             print(f"Loaded Set {ds.index}: {ds.title}")
 
         if load_cols_as_vars:
@@ -4032,6 +4091,7 @@ class UnichartNotebook:
                 print(f"Could not create variables for {len(skipped)} column(s) "
                       f"whose names are not valid identifiers: {skipped[:10]}"
                       f"{'...' if len(skipped) > 10 else ''}")
+        return created
 
     _FILE_READERS = {
         ".csv": lambda path, kw: pd.read_csv(path, **kw),
@@ -4063,24 +4123,40 @@ class UnichartNotebook:
                 return None
             return default_title
 
+        def annotate(created, src_path):
+            # File-backed sets remember where they came from so save_session
+            # can store a reference instead of embedding the rows.
+            if src_path is None:
+                return
+            for ds in created:
+                ds.file_path = str(src_path)
+                if ds._source is not None:
+                    ds._source['path'] = str(src_path)
+                    ds._source['read_kwargs'] = dict(read_kwargs) if read_kwargs else None
+
         if combined:
-            frame = pd.concat([df for df, _ in coerced], ignore_index=True)
-            default_title = next((dt for _, dt in coerced if dt), None)
-            self.load_df(frame, title=resolve_title(frame, default_title),
-                         set_name_column=set_name_column, set_idx_column=set_idx_column,
-                         load_cols_as_vars=load_cols_as_vars)
+            frame = pd.concat([df for df, _, _ in coerced], ignore_index=True)
+            default_title = next((dt for _, dt, _ in coerced if dt), None)
+            created = self.load_df(frame, title=resolve_title(frame, default_title),
+                                   set_name_column=set_name_column, set_idx_column=set_idx_column,
+                                   load_cols_as_vars=load_cols_as_vars)
+            # A combined load is only reproducible from a single source file.
+            if len(coerced) == 1:
+                annotate(created, coerced[0][2])
             return
 
-        for frame, default_title in coerced:
-            self.load_df(frame, title=resolve_title(frame, default_title),
-                         set_name_column=set_name_column, set_idx_column=set_idx_column,
-                         load_cols_as_vars=load_cols_as_vars)
+        for frame, default_title, src_path in coerced:
+            created = self.load_df(frame, title=resolve_title(frame, default_title),
+                                   set_name_column=set_name_column, set_idx_column=set_idx_column,
+                                   load_cols_as_vars=load_cols_as_vars)
+            annotate(created, src_path)
 
     def _coerce_to_df(self, source, read_kwargs=None):
-        """Coerce a single source into a (DataFrame, default_title) pair. default_title is the
-        filename stem for file inputs, otherwise None."""
+        """Coerce a single source into a (DataFrame, default_title, path) triple.
+        default_title is the filename stem for file inputs; path is the resolved
+        source file, or None for in-memory sources."""
         if isinstance(source, pd.DataFrame):
-            return self._dedupe_columns(source).copy(), None
+            return self._dedupe_columns(source).copy(), None, None
         if isinstance(source, (str, Path)):
             path = Path(source)
             if not path.is_file():
@@ -4090,11 +4166,11 @@ class UnichartNotebook:
                 raise ValueError(
                     f"Unsupported file type '{path.suffix}' for {path}; "
                     f"supported: {', '.join(self._FILE_READERS)}")
-            return reader(path, read_kwargs or {}), path.stem
+            return reader(path, read_kwargs or {}), path.stem, path.resolve()
         if isinstance(source, dict):
-            return pd.DataFrame(source), None
+            return pd.DataFrame(source), None, None
         if isinstance(source, np.ndarray):
-            return pd.DataFrame(source), None
+            return pd.DataFrame(source), None, None
         raise TypeError(
             f"load() cannot handle source of type {type(source).__name__}; "
             f"pass a DataFrame, filepath, dict, or numpy array.")
@@ -4106,6 +4182,383 @@ class UnichartNotebook:
             self.load_df(df, title="Clipboard Data")
         except Exception as e:
             print(f"Error reading clipboard: {e}")
+
+    # ------------------------------------------------------------------
+    # Sessions (save/restore data sources + formatting)
+    # ------------------------------------------------------------------
+
+    # Per-set attributes captured by save_session and restored verbatim by
+    # load_session (title/query/select/order are handled separately because
+    # they need special treatment on restore).
+    _SESSION_SET_FORMAT_ATTRS = (
+        'color', 'marker', 'linestyle', 'markersize', 'linewidth', 'edgewidth',
+        'alpha', 'alpha_marker', 'alpha_line', 'edge_color', 'fill', 'hue',
+        'hue_palette', 'hue_order', 'reg_order', 'style', 'zorder',
+        'plot_type', 'set_type', 'data_type', 'display_parms', 'delta_sets',
+    )
+
+    # Notebook-level formatting captured by save_session. plot_style and
+    # default_format are handled separately (style install order matters and
+    # default_format carries the _MARKER_BY_INDEX sentinel).
+    _SESSION_NB_ATTRS = (
+        'darkmode', 'suptitle', 'footer', 'plot_title', 'x_label', 'y_label',
+        'display_parms', 'axis_limits', 'lines', 'highlights',
+        'parm_description_dict', 'variable_formats', 'color_map', 'marker_map',
+        'figsize', 'plot_defaults', 'plot_size', 'plot_size_per_subplot',
+        'grid_format', 'watermark_format',
+        'suptitle_size', 'footer_size', 'legend_size', 'axes_title_size',
+        'axes_tick_size', 'subplot_title_size', 'colorbar_size', 'hover_size',
+        'table_header_size', 'table_cell_size',
+        'static_images', 'static_scale', 'copy_buttons',
+    )
+
+    _SESSION_MARKER_SENTINEL = '__MARKER_BY_INDEX__'
+
+    @staticmethod
+    def _session_json_default(o):
+        """json.dump fallback for numpy/pandas values inside session state."""
+        if isinstance(o, np.generic):
+            return o.item()
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        if isinstance(o, (pd.Timestamp, datetime)):
+            return o.isoformat()
+        if isinstance(o, (set, frozenset)):
+            return sorted(map(str, o))
+        if isinstance(o, Path):
+            return str(o)
+        return str(o)
+
+    def _set_source_frame(self, ds):
+        """This set's rows, unmasked, restricted to its own columns — what an
+        embedded session entry stores."""
+        cdf = self._combined_df
+        pos = self._set_positions(ds._set_id)
+        return cdf.iloc[pos, ds._own_col_positions()].reset_index(drop=True)
+
+    @staticmethod
+    def _apply_synth_cols(df, synth_cols):
+        """Re-add the columns :meth:`load_df` synthesised at load time
+        (recorded in ``_source['synth_cols']``) to a freshly re-read file
+        frame, so a file-referenced session set restores with the same
+        columns it had originally."""
+        for col, spec in (synth_cols or {}).items():
+            if col in df.columns:
+                continue
+            kind = spec.get('kind') if isinstance(spec, dict) else None
+            if kind == 'index':
+                df[col] = df.index
+            elif kind == 'const':
+                df[col] = spec.get('value')
+        return df
+
+    @staticmethod
+    def _session_relpath(file_path, session_path):
+        """``file_path`` relative to the session file's directory, or None
+        when no relative path exists (e.g. different drives)."""
+        try:
+            return os.path.relpath(str(file_path), str(Path(session_path).resolve().parent))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _resolve_session_file(src, session_path):
+        """Locate a file-referenced session set's source file: the absolute
+        path as saved, falling back to the saved session-relative path so a
+        session file moved together with its data still loads."""
+        fpath = Path(src['path'])
+        if fpath.is_file():
+            return fpath
+        rel = src.get('rel_path')
+        if rel:
+            candidate = Path(session_path).resolve().parent / rel
+            if candidate.is_file():
+                return candidate.resolve()
+        raise FileNotFoundError(f"source file missing: {fpath}")
+
+    @staticmethod
+    def _embed_frame(df):
+        """Encode a DataFrame as a JSON-safe dict, column-wise with recorded
+        dtypes. Serialized by Python's json (not pandas.to_json) because the
+        stdlib writes floats via repr — an exact float64 round-trip, where
+        to_json truncates to at most 15 significant digits."""
+        columns, dtypes, data = [], {}, {}
+        for i in range(df.shape[1]):
+            s = df.iloc[:, i]
+            name = str(df.columns[i])
+            columns.append(name)
+            dtypes[name] = str(s.dtype)
+            if pd.api.types.is_datetime64_any_dtype(s):
+                vals = [None if pd.isna(v) else v.isoformat() for v in s]
+            else:
+                # tolist() converts numpy scalars to Python ones; float NaN
+                # survives json (NaN literal) but NaT/pd.NA would not.
+                vals = [None if v is pd.NaT or v is pd.NA else v
+                        for v in s.tolist()]
+            data[name] = vals
+        return {'columns': columns, 'dtypes': dtypes, 'data': data}
+
+    @staticmethod
+    def _unembed_frame(payload):
+        """Rebuild a DataFrame from :meth:`_embed_frame` output."""
+        series = {}
+        for name in payload['columns']:
+            dtype = payload.get('dtypes', {}).get(name)
+            s = pd.Series(payload['data'][name],
+                          dtype='object' if dtype == 'object' else None)
+            if dtype and dtype != 'object':
+                try:
+                    s = s.astype(dtype)
+                except (TypeError, ValueError):
+                    pass
+            series[name] = s
+        return pd.DataFrame(series)[payload['columns']]
+
+    def save_session(self, path, embed_data=True):
+        """Save a reloadable plotting session: every set's data source, query
+        and formatting, plus the notebook-level formatting state.
+
+        Each set is saved either as a **file reference** (path + read options +
+        group key, when the set was loaded from a file that still exists and
+        the set's columns are unchanged since loading) or as **embedded data**
+        (the rows themselves, stored in the session file). Restore with
+        :meth:`load_session`. File references store both the absolute path
+        and the path relative to the session file, so a session moved
+        together with its data files still loads.
+
+        Parameters
+        ----------
+        path : str | Path
+            Destination ``.json`` file.
+        embed_data : bool | 'all'
+            ``True`` (default): embed the rows of any set that cannot be
+            reproduced from a file — in-memory loads, derived sets (delta/
+            combine), df-replaced sets, sets with added or overwritten
+            columns, or sets whose source file has gone missing. ``False``: save file references
+            only; non-reproducible sets are skipped with a warning. ``'all'``:
+            embed every set's rows, making the session file fully
+            self-contained (survives source-file edits/deletion).
+
+        Notes
+        -----
+        Column writes through ``ds[col] = ...``, :meth:`set_column` and
+        :meth:`add_column` are tracked, but in-place edits made directly on
+        ``nb.df`` (``nb.df.loc[...] = ...``) are not detectable and would be
+        lost on reload — pass ``embed_data='all'`` to be safe. Queries are
+        saved as expressions and re-run on load.
+        """
+        path = Path(path)
+        embed_all = (embed_data == 'all')
+        set_entries, n_file, n_embedded, skipped = [], 0, 0, []
+
+        for ds in self.sets:
+            src = ds._source or {}
+            file_ok = False
+            if not embed_all and src.get('path'):
+                file_ok = Path(src['path']).is_file()
+                if file_ok and src.get('load_cols') is not None:
+                    # Columns added since load (ds['NEW']=..., set_column, ...)
+                    # would not come back from the file — embed instead.
+                    file_ok = set(src['load_cols']) == set(ds._own_cols)
+                if file_ok and src.get('modified'):
+                    # A loaded column was overwritten through the write APIs
+                    # (ds[col]=..., set_column, add_column) — embed instead.
+                    file_ok = False
+                if file_ok and src.get('read_kwargs'):
+                    try:
+                        json.dumps(src['read_kwargs'])
+                    except TypeError:
+                        file_ok = False
+
+            if file_ok:
+                source = {'kind': 'file', 'path': str(src['path']),
+                          'rel_path': self._session_relpath(src['path'], path),
+                          'read_kwargs': src.get('read_kwargs'),
+                          'set_idx_column': src.get('set_idx_column'),
+                          'group_key': src.get('group_key'),
+                          'synth_cols': src.get('synth_cols') or None}
+                n_file += 1
+            elif embed_data:
+                source = {'kind': 'embedded',
+                          'frame': self._embed_frame(self._set_source_frame(ds))}
+                n_embedded += 1
+            else:
+                skipped.append(ds.index)
+                continue
+
+            entry = {
+                'title': ds.title,
+                'query': ds._query,
+                'select': ds._select,
+                'order': ds._order,
+                'source': source,
+                'format': {a: getattr(ds, a, None)
+                           for a in self._SESSION_SET_FORMAT_ATTRS},
+            }
+            set_entries.append(entry)
+
+        nb_state = {a: getattr(self, a, None) for a in self._SESSION_NB_ATTRS}
+        nb_state['plot_style'] = getattr(self, 'plot_style', None)
+        nb_state['default_format'] = {
+            k: (self._SESSION_MARKER_SENTINEL if v is _MARKER_BY_INDEX else v)
+            for k, v in self.default_format.items()}
+
+        session = {'unichart_session': 1,
+                   'saved': datetime.now().isoformat(timespec='seconds'),
+                   'notebook': nb_state,
+                   'sets': set_entries}
+        with open(path, 'w') as fh:
+            json.dump(session, fh, indent=1, default=self._session_json_default)
+
+        msg = (f"Saved session to {path}: {len(set_entries)} set(s) "
+               f"({n_file} file-referenced, {n_embedded} embedded)")
+        if skipped:
+            msg += (f"; skipped {len(skipped)} set(s) with no file source "
+                    f"{skipped} (use embed_data=True to include them)")
+        print(msg)
+
+    def load_session(self, path, restore_notebook_format=True):
+        """Restore a session saved by :meth:`save_session`: reload every set
+        from its file reference or embedded data, then reapply titles,
+        queries, select flags and all formatting.
+
+        Sets are appended after any already-loaded sets (load into a fresh
+        notebook to reproduce the saved indices exactly; ``delta_sets``
+        base/study references are shifted to match the new positions either
+        way). File-referenced sets re-read their source file (by absolute
+        path, else by the saved session-relative path), so edits to the file
+        since saving show up — and a vanished file or group key means that
+        set is skipped with a warning.
+
+        Parameters
+        ----------
+        path : str | Path
+            Session ``.json`` file written by :meth:`save_session`.
+        restore_notebook_format : bool
+            Also restore notebook-level formatting (plot style, color/marker
+            maps, default format, labels, lines/highlights, axis limits, font
+            sizes, ...). Default True; pass False to keep the current
+            notebook-level settings and only load the sets.
+
+        Returns the list of Datasets created.
+        """
+        with open(path) as fh:
+            session = json.load(fh)
+        if 'unichart_session' not in session:
+            raise ValueError(f"{path} is not a unichart session file.")
+
+        base_offset = len(self.sets)
+        frames, kept_entries, file_cache, resolved_paths = [], [], {}, {}
+
+        for i, entry in enumerate(session.get('sets', [])):
+            src = entry.get('source') or {}
+            kind = src.get('kind')
+            try:
+                if kind == 'embedded':
+                    df = self._unembed_frame(src['frame'])
+                elif kind == 'file':
+                    fpath = self._resolve_session_file(src, path)
+                    resolved_paths[i] = str(fpath)
+                    cache_key = (str(fpath),
+                                 json.dumps(src.get('read_kwargs') or {},
+                                            sort_keys=True, default=str),
+                                 json.dumps(src.get('synth_cols') or {},
+                                            sort_keys=True, default=str))
+                    if cache_key not in file_cache:
+                        reader = self._FILE_READERS.get(fpath.suffix.lower())
+                        if reader is None:
+                            raise ValueError(f"unsupported file type: {fpath.suffix}")
+                        file_cache[cache_key] = self._apply_synth_cols(
+                            self._dedupe_columns(
+                                reader(fpath, src.get('read_kwargs') or {})),
+                            src.get('synth_cols'))
+                    df = file_cache[cache_key]
+                    idx_col = src.get('set_idx_column')
+                    if idx_col is not None:
+                        key = src.get('group_key')
+                        if idx_col not in df.columns:
+                            raise ValueError(f"split column '{idx_col}' missing from {fpath}")
+                        groups = dict(iter(df.groupby(idx_col)))
+                        match = key if key in groups else next(
+                            (k for k in groups if str(k) == str(key)), None)
+                        if match is None:
+                            raise ValueError(f"group {key!r} not found in {fpath}")
+                        df = groups[match]
+                    df = df.copy()
+                else:
+                    raise ValueError(f"unknown source kind: {kind!r}")
+            except Exception as e:
+                print(f"Warning: skipping session set {i} "
+                      f"({entry.get('title', '?')}): {e}")
+                continue
+            frames.append((df, entry.get('title') or 'Untitled'))
+            kept_entries.append((i, entry))
+
+        created = self._register_sets(frames)
+
+        for ds, (entry_pos, entry) in zip(created, kept_entries):
+            fmt = entry.get('format') or {}
+            for attr in self._SESSION_SET_FORMAT_ATTRS:
+                if attr not in fmt:
+                    continue
+                value = fmt[attr]
+                if attr == 'delta_sets' and isinstance(value, dict):
+                    value = dict(value)
+                    for ref in ('base', 'study'):
+                        if isinstance(value.get(ref), int):
+                            value[ref] += base_offset
+                try:
+                    setattr(ds, attr, value)
+                except (ValueError, TypeError) as e:
+                    print(f"Warning: set {ds.index}: could not restore "
+                          f"{attr}={value!r} ({e})")
+            # 'index' is a valid order sentinel the setter rejects; assign
+            # directly, as _inherit_set_format does.
+            ds._order = entry.get('order')
+            if entry.get('query'):
+                try:
+                    ds.query = entry['query']
+                except ValueError as e:
+                    print(f"Warning: set {ds.index}: could not restore query "
+                          f"{entry['query']!r} ({e})")
+            # After the query: an emptied query flips select off, and the
+            # saved flag is the state the user actually had.
+            ds._select = bool(entry.get('select', True))
+
+            # Re-attach provenance so the restored session can be re-saved.
+            src = entry.get('source') or {}
+            if src.get('kind') == 'file':
+                fpath = resolved_paths.get(entry_pos, src['path'])
+                ds.file_path = fpath
+                ds._source = {'path': fpath,
+                              'read_kwargs': src.get('read_kwargs'),
+                              'set_idx_column': src.get('set_idx_column'),
+                              'group_key': src.get('group_key'),
+                              'synth_cols': dict(src.get('synth_cols') or {}),
+                              'load_cols': set(ds._own_cols)}
+
+        if restore_notebook_format and isinstance(session.get('notebook'), dict):
+            nb_state = session['notebook']
+            style = nb_state.get('plot_style')
+            if style:
+                # Install the style first; explicit saved values below win.
+                self._apply_style_defaults(style)
+            if isinstance(nb_state.get('default_format'), dict):
+                self.default_format = {
+                    k: (_MARKER_BY_INDEX if v == self._SESSION_MARKER_SENTINEL else v)
+                    for k, v in nb_state['default_format'].items()}
+            for attr in self._SESSION_NB_ATTRS:
+                if attr in nb_state:
+                    setattr(self, attr, nb_state[attr])
+            # JSON turns tuples into lists; these two are used as tuples.
+            for attr in ('figsize', 'plot_size'):
+                val = getattr(self, attr, None)
+                if isinstance(val, list):
+                    setattr(self, attr, tuple(val))
+
+        print(f"Loaded session from {path}: {len(created)} set(s) restored"
+              + (f" (appended after {base_offset} existing)" if base_offset else ""))
+        return created
 
     def clear_data(self):
         self.sets = []
@@ -4142,8 +4595,11 @@ class UnichartNotebook:
         self._reconcile_columns()
         self._combined_df[name] = value
         # An all-sets write: every set owns the column, even where the
-        # assigned values happen to be NaN.
+        # assigned values happen to be NaN. Sets that already owned it have
+        # had source-loaded values overwritten.
         for ds in self.sets:
+            if name in ds._own_cols:
+                ds._mark_source_modified()
             ds._own_cols.add(name)
         self._snapshot_columns()
         self._reapply_all_queries()
@@ -4203,8 +4659,11 @@ class UnichartNotebook:
             cdf[col] = cdf[col].astype(object)
         cdf.loc[mask, col] = assign_val
         # The targeted sets claim the column — including the case of filling
-        # NaNs into a column some other set introduced.
+        # NaNs into a column some other set introduced. Sets that already
+        # owned it have had source-loaded values overwritten.
         for ds in targets:
+            if col in ds._own_cols:
+                ds._mark_source_modified()
             ds._own_cols.add(col)
         self._reapply_all_queries()
 
@@ -9355,7 +9814,8 @@ class UnichartNotebook:
     # simply skipped.
     _HELP_CATEGORIES = [
         ("Loading & data",   ['load', 'load_df', 'load_clipboard', 'combine_sets',
-                              'combine', 'add_column', 'set_column']),
+                              'combine', 'add_column', 'set_column',
+                              'save_session', 'load_session']),
         ("Selection",        ['select', 'selected', 'omit', 'query', 'restore',
                               'clear_data']),
         ("Plotting",         ['plot', 'plot_ymult', 'plot_type', 'bar', 'box',
