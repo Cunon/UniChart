@@ -57,11 +57,12 @@ _RENDER_LOCK = threading.Lock()
 # contour panel with no z renders a graceful in-panel error. table renders a
 # go.Table of the selected columns (the y control picks the columns); it has a
 # different signature, so render_panel dispatches it through a dedicated branch.
-PLOT_METHODS = ['plot', 'plot_ymult', 'bar', 'box', 'histogram', 'contour', 'table']
+PLOT_METHODS = ['plot', 'plot_ymult', 'plot_marginal', 'bar', 'box', 'histogram',
+                'contour', 'table']
 
 # Methods whose signature accepts a `legend=` argument (above/right/off). The
 # legend control is only shown — and only passed through — for these.
-_LEGEND_METHODS = {'plot', 'plot_ymult'}
+_LEGEND_METHODS = {'plot', 'plot_ymult', 'plot_marginal'}
 
 # Methods that take a `z=` column (mapped to color). The z dropdown is only
 # shown — and only passed through — for these.
@@ -877,8 +878,8 @@ def _register_board_callbacks(app, nb, size):
         Input({'type': 'panel-method', 'index': MATCH}, 'value'),
     )
     app.clientside_callback(
-        "function(method){ return (method === 'plot' || method === 'plot_ymult')"
-        " ? 'control' : 'control hidden'; }",
+        "function(method){ return (method === 'plot' || method === 'plot_ymult'"
+        " || method === 'plot_marginal') ? 'control' : 'control hidden'; }",
         Output({'type': 'panel-legend-wrap', 'index': MATCH}, 'className'),
         Input({'type': 'panel-method', 'index': MATCH}, 'value'),
     )

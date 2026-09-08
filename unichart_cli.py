@@ -33,7 +33,7 @@ __version__ = '0.1.0'
 # form is clearer than any flag encoding would be.
 PANEL_HELP = (
     "add a panel, as method:x:y[,y2][:z] (repeatable). method is one of "
-    "plot, plot_ymult, bar, box, histogram, contour, table. "
+    "plot, plot_ymult, plot_marginal, bar, box, histogram, contour, table. "
     "Examples: plot:time:temp  |  plot:time:temp,press  |  "
     "contour:rpm:torque:eff  |  histogram:temp"
 )
