@@ -2630,6 +2630,11 @@ def unibar_per_dataset(list_of_datasets, x, y, markers=None, variable_formats=No
     variable_formats applies to BOTH bar variables and marker columns in
     this view, since color encodes variable (not dataset) within each subplot.
 
+    ``markers`` overlay columns pair positionally with the y variables: a
+    tick/whisker glyph for the i-th marker column sits on (and, for
+    'whisker', stems to) the i-th y variable's bar in each group. Marker
+    columns beyond the number of y variables attach to the first y variable.
+
     The x-axis title appears only on each column's bottom-most panel;
     ``ylabel``, when given, only on the first column.
     """
@@ -2708,12 +2713,14 @@ def unibar_per_dataset(list_of_datasets, x, y, markers=None, variable_formats=No
                         if var_fmt.get('linestyle') is not None else 'solid')
             m_lw     = var_fmt.get('linewidth', 2)
 
-            # Color encodes variable in this view, so an overlay column isn't
-            # tied to one bar series: tick/whisker glyphs attach to the FIRST
-            # plotted y variable's bars (classic markers stay at the category
-            # center, as before).
-            anchor = next((yy for yy in y_list if yy in df.columns), None)
-            attach = m_style in ('tick', 'whisker') and anchor is not None
+            # Positional pairing, as in unibar / unibar_datasets_as_x: the i-th
+            # overlay column attaches its tick/whisker glyph to the i-th y
+            # variable's bars (extras fall back to the first y). Classic
+            # markers stay at the category center. If this set lacks the
+            # paired bar column the glyph is drawn unattached (no stem) rather
+            # than on some other variable's bar.
+            anchor = y_list[m_idx if m_idx < len(y_list) else 0] if y_list else None
+            attach = m_style in ('tick', 'whisker') and anchor in df.columns
             group_kw = ({'offsetgroup': f"var_{anchor}", 'alignmentgroup': "bars"}
                         if attach else {})
 
@@ -9284,6 +9291,8 @@ class UnichartNotebook:
         variable's panel, attached to that variable's bars (extras fall back to
         the first panel). So ``y=['EGT', 'RU'], markers=['EGT_LIMIT',
         'RU_LIMIT']`` puts each limit on its own variable's panel and scale.
+        In ``by='sets'`` the pairing is the same, within each dataset's panel:
+        the i-th tick/whisker sits on the i-th y variable's bar.
 
         ``scale()`` accepts an overlay column too, since the overlay shares the
         bar's y-axis. Its range is unioned with the paired bar variable's own
